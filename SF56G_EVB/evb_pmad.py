@@ -6,12 +6,14 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from evb_plot import *
 import evb_extra
+
 class EVB_PMAD(object):
     def __init__(self):
         # port
         self.mCfg  = None
         self.mApb  = None
         # shared vars
+
     def connect(self,mCfg,mApb):
         self.mCfg = mCfg
         self.mApb = mApb
@@ -25,29 +27,35 @@ class EVB_PMAD(object):
         self.tx_post1 = [0]*self.mCfg.max_channel
         self.attenuation = [1.0]*self.mCfg.max_channel
         self.cboost = [0]*self.mCfg.max_channel
-  
+   
     def is_bbpd_rate(self,data_rate):
         if data_rate in [10.3125]:
             return True
         else:
             return False
+
     def is_pam4_rate(self,data_rate):
         if data_rate in [56.25,53.125,21.25,22.5]:
             return True
         else:
             return False
+
     def is_lane_enabled(self,lane_index=0):
         return ((self.mCfg.lane_en >> lane_index) & 1 == 1)
+
     def get_active_lane(self):
         result = []
         for i in range(self.mCfg.max_channel):
             if ((self.mCfg.lane_en >> i) & 1 == 1):
                 result.append(i)
         return result
+
     def get_signed_code(self, unsigned):
         return (unsigned if unsigned < 128 else unsigned-256)
+
     def get_unsigned_code(self, signed):
         return (signed if signed >= 0 else signed+256)
+
     def get_coef_lvl(self, symbol):
         if symbol == 0:
             return -3
@@ -59,6 +67,7 @@ class EVB_PMAD(object):
             return  3
         else:
             return 0
+
 #----------------------------------------------------------------------------------------------------
 # Debug
 #----------------------------------------------------------------------------------------------------
@@ -69,6 +78,7 @@ class EVB_PMAD(object):
             data = self.mApb.read(addr,channel)
             fh.writelines('[ln%d] 0x%x => 0x%x\n' % (channel,addr,data))
             addr += 4
+
     def DumpRegFile(self,target='rx',tag='',channel=0):
         file_name = self.mCfg.dump_path+'regdump'+tag+'.txt'
         fh = open(file_name,'w')
@@ -95,29 +105,35 @@ class EVB_PMAD(object):
             self.DumpRegs(fh,0x0000,0x0148,0)
             self.DumpRegs(fh,0x0FFC,0x0FFC,0)
         fh.close()
+
     def PrintCmnState(self):
         rdata = self.mApb.read(0xC0)
         print ("PLL Lock Done = %s" % (rdata & 1 == 1))
+
     def PrintLaneState(self,channel=0):
         rxstate = self.mApb.read(0x64000,channel)
         rxstate |= ((self.mApb.read(0x64004,channel) & 0x1ff) << 16)
         txstate = self.mApb.read(0x54000,channel)
         print ("LN[%d] %-20s %-20s" % (channel,PMAD_RxState(rxstate),PMAD_TxState(txstate)))
+
     def PrintIocCalState(self,channel=0):
         rdata = self.mApb.read(0x64010,channel)
         state = rdata&0xf
         substate = (rdata>>4)&0xf
         print ("LN[%d] IocCalState: %-20s , %-20s" % (channel,PMAD_IocState(state),PMAD_IocSubState(substate)))
+
     def PrintInitCalState(self,channel=0):
         for i in range(33):
             rdata = self.mApb.read(0x64014+i*4,channel)
             state = (rdata>>3)&0x3
             print ("LN[%d] adc(%2d) InitCalState: %-20s" % (channel,i,PMAD_InitCalState(state)))
+
     def PrintMainCalState(self,channel=0):
         for i in range(33):
             rdata = self.mApb.read(0x64014+i*4,channel)
             state = rdata&0x7
             print ("LN[%d] adc(%2d) MainCalState: %-20s" % (channel,i,PMAD_MainCalState(state)))
+
     def PrintAllRxCoef(self,channel=0):
         cm2 = self.get_signed_code(self.mApb.read(0x62274,channel))
         cm1 = self.get_signed_code(self.mApb.read(0x62270,channel))
@@ -143,22 +159,27 @@ class EVB_PMAD(object):
         print ("LN[%d] C[ 6]: %-10.2f" % (channel,round(-c6 /128.0,2)))
         print ("LN[%d] C[ 7]: %-10.2f" % (channel,round(-c7 /128.0,2)))
         print ("LN[%d] C[ 8]: %-10.2f" % (channel,round(-c8 /128.0,2)))
+
     def PrintAllAdcMinMax(self,channel=0,mon_sel=0):
         for adc_channel in range(32):
             (minval,maxval) = self.GetAdcMinMax(adc_channel,channel,mon_sel,1)
             print ("LN[%d] adc(%2d) min=%d, max=%d" % (channel,adc_channel,minval,maxval))
+
     def PrintAdcSkewCode(self,channel=0):
         for i in range(4):
             code = self.mApb.read(0x64098+i*4,channel)
             print ("LN[%d] skewcode%d=%d" % (channel,i,code))
+
     def PrintAdcCalC0p(self,channel=0):
         for i in range(33):
             code = self.mApb.read(0x64100+i*4,channel)
             print ("LN[%d] adc<%2d> c0p=%d" % (channel,i,code))
+
     def PrintAdcCalC0m(self,channel=0):
         for i in range(33):
             code = self.get_signed_code(self.mApb.read(0x64184+(i*4 if i<18 else i*4+4),channel))
             print ("LN[%d] adc<%2d> c0m=%d" % (channel,i,code))
+
     def PrintDataPathConfig(self,channel=0):
         tx_018 = self.mApb.read(0x50018,channel)
         tx_084 = self.mApb.read(0x50084,channel)
@@ -178,6 +199,7 @@ class EVB_PMAD(object):
         c0h = min(63,int((self.mApb.read(0x6223C,channel)+3)/2.0)) #25
         c0l = min(63,int((self.mApb.read(0x62240,channel)+1)/2.0)) #9
         pam4 = (c0l != 0)
+
         # get histo data
         height_data = self.GetEye_HeightData(target=range(128),channel=channel)
         # find Height and Center
@@ -189,6 +211,7 @@ class EVB_PMAD(object):
             h01,c01 = 0,0
             h12,c12 = self.GetEye_HnC(height_data,64-c0h,64+c0h)
             h23,c23 = 0,0
+
         # collect width data
         w01,w12,w23 = 0,0,0
         if not HeightOnly:
@@ -200,12 +223,14 @@ class EVB_PMAD(object):
             t01 = self.GetEye_GetEomThld(c01,h01,p01,channel)
             t12 = self.GetEye_GetEomThld(c12,h12,p12,channel)
             t23 = self.GetEye_GetEomThld(c23,h23,p23,channel)
+
             width_data  = self.GetEye_WidthData(c01,c12,c23,channel)
             if pam4:
                 w01 = self.GetEye_Width(width_data[0],t01)
             w12 = self.GetEye_Width(width_data[1],t12)
             if pam4:
                 w23 = self.GetEye_Width(width_data[2],t23)
+
         # convert height to voltage scale
         h01s = h01/63.0
         h12s = h12/63.0
@@ -214,12 +239,13 @@ class EVB_PMAD(object):
         w12s = w12/128.0
         w23s = w23/128.0
         return [h01s,w01s,h12s,w12s,h23s,w23s]
- 
+  
     def GetEye_Width(self,width_data,thld=0):
         if width_data[0] <= thld:
             state = 'PREV_EYE'
         else:
             state = 'WALL'
+
         ptr_beg,ptr_end = 0,0
         for i,data in enumerate(width_data):
             if state == 'PREV_EYE':
@@ -234,11 +260,14 @@ class EVB_PMAD(object):
                     state = 'END'
                     ptr_end = i
         return max(0,(ptr_end-ptr_beg))
+
     def GetEye_WidthData(self,c01,c12,c23,channel=0):
         ui_interval = 128
+
         # move to left boundary
         phase = self.mApb.read(0x61008,channel)
         self.SetEomPosition(-int(ui_interval/2),channel)
+
         # collect
         w01 = []
         w12 = []
@@ -254,10 +283,12 @@ class EVB_PMAD(object):
             self.mApb.write(0x60100, 0<<7, channel, 1<<7) # turn off
             self.mApb.write(0x60100, 1<<7, channel, 1<<7) # turn on
             Delay(10)
+
             w01.append(self.mApb.read(0x63010+4*c01,channel))
             w12.append(self.mApb.read(0x63010+4*c12,channel))
             w23.append(self.mApb.read(0x63010+4*c23,channel))
         return w01,w12,w23
+
     def GetEye_HnC(self,height_data,bot,top):
         zero_min = -1
         zero_max = -1
@@ -270,7 +301,9 @@ class EVB_PMAD(object):
                 zero_max = i
         height = zero_max-zero_min
         center = int((zero_max+zero_min)/2)
+
         return (height,center)
+
     def GetEye_HeightData(self,target=range(128),channel=0):
         data = []
         self.mApb.write(0x60100, 1<<6|0<<7, channel, 1<<6|1<<7) # turn off, data_path(1:normal,0:eom)
@@ -279,6 +312,7 @@ class EVB_PMAD(object):
         for i in target:
             data.append(self.mApb.read(0x63010+4*i,channel))
         return data
+
     def SetEomZeroPosition(self,channel=0):
         curPhase = self.mApb.read(0x61008,channel)
         self.mApb.write(0x61018,0xc017,channel) #?
@@ -288,6 +322,7 @@ class EVB_PMAD(object):
             else:
                 curPhase -= 1
             self.mApb.write(0x61008,curPhase,channel)
+
     def SetEomPosition(self,target=0,channel=0):
         curPhase = self.mApb.read(0x61008,channel)
         self.mApb.write(0x61018,0xc017,channel) #?
@@ -296,6 +331,7 @@ class EVB_PMAD(object):
             direction = 1 if abs(unsigned_target-curPhase) < abs(512+curPhase-unsigned_target) else 0
         else:
             direction = 1 if abs(curPhase-unsigned_target) > abs(512+unsigned_target-curPhase) else 0
+
         while (curPhase != unsigned_target):
             if direction == 1:
                 curPhase += 1
@@ -304,6 +340,7 @@ class EVB_PMAD(object):
                 curPhase -= 1
                 curPhase = 511 if curPhase==-1 else curPhase
             self.mApb.write(0x61008,curPhase,channel)
+
     def GetEye_GetCenterPhase(self,height_center=64,channel=0):
         center_data = []
         eom_beg_ptr = -64
@@ -328,6 +365,7 @@ class EVB_PMAD(object):
                 phase -=512
             elif phase < 0:
                 phase += 512
+
             if state == 'IDLE':
                 if cnt <= self.mCfg.eom_zero_thld:
                     phase_beg = phase
@@ -341,6 +379,7 @@ class EVB_PMAD(object):
         center = phase_beg + int(phase_len/2)
         center = center-512 if center >= 512 else center
         return center
+
     def GetEye_GetEomThld(self,center,height,phase,channel=0):
         self.SetEomPosition(phase,channel)
         self.mApb.write(0x60100, 0<<6, channel, 1<<6) # eom_data
@@ -355,6 +394,7 @@ class EVB_PMAD(object):
             return max(thld_data)
         else:
             return 0
+
     def GetStatus(self,measure_bits_db=30,extra_ber_en=1,HeightOnly=1,lin_fit_en=1,lin_fit_point=41,lin_fit_main=10,imp_eq_out=0,channel=0):
         result = {}
         # TxEQ
@@ -393,10 +433,13 @@ class EVB_PMAD(object):
         if lin_fit_en==1:
             result['lin_fit_x'],result['lin_fit_y'] = self.lin_fit_pulse(num_point=lin_fit_point,main=lin_fit_main,eq_out=imp_eq_out,channel=channel)
 
+
         return result
+
     def get_extra_ber(self, nBit, ln_i):
         memSize = 128
         curPhase = self.mApb.read(0x00061008, ln_i)
+
         self.mApb.write(0x00061018, 0xc017, ln_i)
         while (curPhase != 0 and curPhase != 512):
             if (curPhase > 256):
@@ -414,21 +457,26 @@ class EVB_PMAD(object):
         self.mApb.write(0x00060100, dataTemp & 0x7F, ln_i)
         self.mApb.write(0x00060100, dataTemp | 0x80, ln_i)
         Delay(100)
+
         self.mApb.write(0x00061000, countnumOrg<<3, channel=ln_i, mask=0xf<<3)
         fs = open(filename, 'w')
+
         for mem_i in range(memSize):
             memAdd = 0x00063010 + mem_i * 4
             data = self.mApb.read(memAdd, ln_i)
             fs.write("%s %s\n" % (str(mem_i), str(data)))
+
         fs.close()
         if (nBit == 2):
             return evb_extra.bathtub_extrapolation_pam4(filename, countnum)
         else:
             return evb_extra.bathtub_extrapolation_nrz(filename, countnum)
+
     def GetAdcMinMax(self,adc_channel=0,channel=0,mon_sel=0,repeat=1):
         # to disable the use by h/w(rx_main)
         org_value = self.mApb.read(0x6051C,channel)
         self.mApb.write(0x6051C,0,channel)
+
         # measure
         minval = 0
         maxval = 0
@@ -439,14 +487,17 @@ class EVB_PMAD(object):
             minval += (rdata&0xff)
             maxval += ((rdata>>8)&0xff)
             self.mApb.write(0x62248,0,channel)
+
         minval = int(minval/repeat)
         maxval = int(maxval/repeat)
+
         # rollback
         self.mApb.write(0x6051C,org_value,channel)
         if mon_sel==1:
             minval = minval-128
             maxval = maxval-128
         return (minval,maxval)
+
     def GetBer(self, measure_bits_db=30 ,channel=0):
         # calculate measure time
         if self.is_bbpd_rate(self.mCfg.data_rate):
@@ -458,10 +509,12 @@ class EVB_PMAD(object):
         sfr_measure = max(1,sfr_measure)
         sfr_measure = min(31,sfr_measure)
         measure_time = 250 * (2**(max(27,sfr_measure)-26))
+
         # set measure time, restart
         self.mApb.write(0x60174, 0, channel, mask=1)
         self.mApb.write(0x60208, sfr_measure<<4, channel, mask=0x1f<<4)
         self.mApb.write(0x60174, 1, channel, mask=1)
+
         # calculate ber
         Delay(measure_time)
         data = self.mApb.read(0x00060700,channel)
@@ -477,6 +530,7 @@ class EVB_PMAD(object):
         else:
             ber  = self.mCfg.ber_fail_value
         return ber
+
     def GetRxEqCoef(self,tap,channel=0,repeat=1):
         regmap = ([0x2274,0x2270,0x223C] + [0x2250+4*i for i in range(8)])
         addr   = regmap[(tap+2)]+0x60000
@@ -491,6 +545,7 @@ class EVB_PMAD(object):
 #{{{
     def SetCmnStart(self):
         self.mApb.write(0x00064, 0x0011)
+
     def SetCmnBase(self):
         self.mApb.write(0x00000000, 0x00000431)
         self.mApb.write(0x00000004, 0x00000024)  #[DIFF] 2c
@@ -557,9 +612,11 @@ class EVB_PMAD(object):
         self.mApb.write(0x0000014c, 0x0000000c)
         self.mApb.write(0x00000300, 0x00000003) #[DIFF] 0
         self.mApb.write(0x00000304, 0x0000000a)
+
     def SetTxBase(self, channel=0):
         en_10g = 1 if self.is_bbpd_rate(self.mCfg.data_rate) else 0
         dw_64b = 1 if self.is_pam4_rate(self.mCfg.data_rate) else 0
+
         self.mApb.write(0x50000, 0x0001, channel)   # force dcc i code -> @ 201 force dcc ib_code
         self.mApb.write(0x50004, 0x0002, channel)
         self.mApb.write(0x50008, 0x0000, channel)
@@ -636,9 +693,11 @@ class EVB_PMAD(object):
         self.mApb.write(0x5066c, 0x0000, channel)
         self.mApb.write(0x50670, 0x0072, channel)
         self.mApb.write(0x50674, 0x0000, channel)
+
     def SetRxBase(self, channel=0):
         en_10g = 1 if self.is_bbpd_rate(self.mCfg.data_rate) else 0
         dw_64b = 1 if self.is_pam4_rate(self.mCfg.data_rate) else 0
+
         self.mApb.write(0x60000, 0x0000, channel)
         self.mApb.write(0x60004, 0x0000, channel)
         self.mApb.write(0x60008, 0x0000, channel)
@@ -927,6 +986,7 @@ class EVB_PMAD(object):
         self.mApb.write(0x64324, 0x00000010, channel)
         self.mApb.write(0x64328, 0x00000010, channel)
         self.mApb.write(0x6432c, 0x00000010, channel)
+
     def SetPll(self):
         if (self.mCfg.data_rate == 10.3125) :
             self.mApb.write(0x000000d8, 0x0000001a)  #pll sdiv [4]
@@ -958,6 +1018,7 @@ class EVB_PMAD(object):
             self.mApb.write(0x000000dc, 0x00004848)  # pll mdiv
             self.mApb.write(0x000000e4, 0x00000000)  # sdm en
             self.mApb.write(0x00000138, 0x00000041)  # 14g_en [6]
+
     def SetTxBist(self, data_patt=0, en=1, channel=0):
         self.mApb.write(0x50104, data_patt<<2|en<<0, channel, 3<<2|1<<0)
         if self.mCfg.media_mode == 'SLB':
@@ -965,24 +1026,29 @@ class EVB_PMAD(object):
             self.mApb.write(0x50000, 1, channel, 1<<0)
             self.mApb.write(0x50004, 0, channel, 1<<0)
             self.mApb.write(0x50024, 1, channel, 1<<0)
+
     def SetTxRemote(self,en=1,channel=0):
         self.mApb.write(0x50100,en<<4,channel,1<<4)
+
     def SetRxBist(self, data_patt=0, en=1, channel=0):
         self.mApb.write(0x60174, data_patt<<2|en<<0, channel, 3<<2|1<<0)
         if self.mCfg.media_mode == 'SLB':
             self.mApb.write(0x60060, 1<<0, channel, 1<<0)
+
     def SetTxEqCmax(self, pre2=0x1FC0, pre1=0x1FC0,main=0x1FC0,post1=0x1FC0,channel=0):
         # c1, c0, cn1, cn2 max=0x3f(+max), min=0x40 (-max)
         self.mApb.write(0x0005063C, 0x1FC0, channel)
         self.mApb.write(0x00050640, 0x1FC0, channel)
         self.mApb.write(0x00050644, 0x1FC0, channel)
         self.mApb.write(0x00050648, 0x1FC0, channel)
+
     def SetTxEqEmax(self, pre2=0x1FC0, pre1=0x1FC0,main=0x1FC0, post1=0x1FC0,channel=0):
         # eq_max = 0x1ff (default 0x100),
         self.mApb.write(0x5064C, 0x01FF, channel)
         self.mApb.write(0x50654, 0x01FF, channel)
         self.mApb.write(0x5065C, 0x01FF, channel)
         self.mApb.write(0x50664, 0x01FF, channel)
+
     def SetTxEqStep(self,channel=0):
         self.mApb.write(0x5061C, 0x0182, channel)                 # [11:6] c1_step_size_3  [5:0] c1_step_size_2
         self.mApb.write(0x50620, 0x0086, channel)                 # [11:6] c1_step_size_1  [5:0] c1_step_size_0
@@ -992,26 +1058,33 @@ class EVB_PMAD(object):
         self.mApb.write(0x50630, 0x0086, channel)                 # [11:6] cn1_step_size_1 [5:0] cn1_step_size_0
         self.mApb.write(0x50634, 0x0182, channel)                 # [11:6] cn2_step_size_3 [5:0] cn2_step_size_2
         self.mApb.write(0x50638, 0x0086, channel)                 # [11:6] cn2_step_size_1 [5:0] cn2_step_size_0
+
     def SetTxEqDecrease(self, pre2, pre1, post1, attenuation=1.0, channel=0):
         self.mApb.write(0x50014, 1<<0, channel, mask= 0x1<<0)   # TODO: something strange
         self.mApb.write(0x50088, 0x1000, channel)
         self.mApb.write(0x50088, 0x0000, channel)
+
         # decrease main as others are changed
         main = pre2+pre1+post1+round((1.0-attenuation)/0.05)
         for i in range(main):
             self.mApb.write(0x50088, 0x0010, channel)
             self.mApb.write(0x50088, 0x0000, channel)
+
         for i in range(pre2):
             self.mApb.write(0x50088, 0x0800, channel)
             self.mApb.write(0x50088, 0x0000, channel)
+
         for i in range(pre1):
             self.mApb.write(0x50088, 0x0040, channel)
             self.mApb.write(0x50088, 0x0000, channel)
+
         for i in range(post1):
             self.mApb.write(0x50088, 0x0020, channel)
             self.mApb.write(0x50088, 0x0000, channel)
+
     def SetTxEqLut(self, pre2=0, pre1=0, post1=0, attenuation=1.0, channel=0):
         main   = 1.0 - (abs(pre2) + abs(pre1) + abs(post1))
+
         for i in range(256):
             coef_x_pre2  = self.get_coef_lvl(((i >> 6) & 0x3)) * pre2 * 127 / 3
             coef_x_pre1  = self.get_coef_lvl(((i >> 4) & 0x3)) * pre1 * 127 / 3
@@ -1026,6 +1099,7 @@ class EVB_PMAD(object):
         # preset1 req
         self.mApb.write(0x50088, 0x1000, channel)
         self.mApb.write(0x50088, 0x0000, channel)
+
     def SetTxEq(self,tx_pre2=0,tx_pre1=0,tx_post1=0,attenuation=1.0,channel=0):
         self.tx_pre2[channel] = tx_pre2
         self.tx_pre1[channel] = tx_pre1
@@ -1038,30 +1112,36 @@ class EVB_PMAD(object):
             pre1 = round(abs(tx_pre1) / 0.05)
             post1= round(abs(tx_post1) / 0.05)
             self.SetTxEqDecrease(pre2,pre1,post1,attenuation,channel)
+
     def SetRxEqForce(self, tap=1, coef=0, channel=0):
         # pre2, pre1, c0h, c1,...
         regmap = [0x128,0x120]+[0x110]+[0x130+8*i for i in range(8)]
         addr   = regmap[(tap+2)]+0x60000
         value = (0x100-abs(coef)) if (coef < 0) else coef
+
         self.mApb.write(addr, 1<<8|value, channel)
         # set c0_l with 1/3*c0_h
         if tap == 0:
             self.mApb.write(0x60118, int(value/3), channel)
         self.mApb.write(0x61FF8, 0x4, channel) # update
+
     def SetRxEqReleaseAll(self, channel=0):
         regmap = [0x128,0x120]+[0x110]+[0x118]+[0x130+8*i for i in range(8)]
         for reg in regmap:
             self.mApb.write(0x60000+reg,0<<8,channel,1<<8)
+
     def SetTxUserPattern(self,pattern, channel=0):
         self.mApb.write(0x50118, pattern[0], channel)
         self.mApb.write(0x5011C, pattern[1], channel)
         self.mApb.write(0x50120, pattern[2], channel)
         self.mApb.write(0x50124, pattern[3], channel)
+
     def SetRxUserPattern(self, pattern, channel=0):
         self.mApb.write(0x60178, pattern[0], channel)
         self.mApb.write(0x6017C, pattern[1], channel)
         self.mApb.write(0x60180, pattern[2], channel)
         self.mApb.write(0x60184, pattern[3], channel)
+
     def SetTxDisable(self,channel=0):
         for i in range(128):
             self.mApb.write(0x51000 + ((i*2+0)*4), 0x0080, channel)
@@ -1069,6 +1149,7 @@ class EVB_PMAD(object):
         # preset1 req
         self.mApb.write(0x50088, 0x1000, channel)
         self.mApb.write(0x50088, 0x0000, channel)
+
     def SetTxInitP1(self,channel=0):
         p1 = [0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF,0x0,0x0,0x0,0x0,0x54,0x54,0x54,0x54,0xAB,0xAB,0xAB,0xAB,0xFF,0xFF,0xFF,0xFF]
         for i,dac in enumerate(p1):
@@ -1076,17 +1157,20 @@ class EVB_PMAD(object):
         # preset1 req
         self.mApb.write(0x50088, 0x1000, channel)
         self.mApb.write(0x50088, 0x0000, channel)
+
     def SetTxOff(self,channel=0):
         self.mApb.write(0x50504, 1<<5, channel, mask=1<<5) #ser_clk_done_bypass=1
         self.mApb.write(0x50004, 0x18<<0, channel, mask=0x18<<0) #ser_clk_rstn,dcc_clk_en=1
         self.mApb.write(0x50000, 0x18<<0, channel, mask=0x18<<0)
         self.mApb.write(0x50084, 0<<0, channel, mask=1<<0)
         self.mApb.write(0x50080, 1<<0, channel, mask=1<<0)
+
     def SetTxOn(self,channel=0):
        #self.mApb.write(0x50504, 1<<5, channel, mask=1<<5) #ser_clk_done_bypass=1
         self.mApb.write(0x50084, 1<<2|1<<0, channel, mask=1<<2|1<<0) # train=1, prot_en=1
         if self.mCfg.media_mode == 'SLB':
             self.mApb.write(0x50024, 1, channel)
+
         if False:
             self.mApb.write(0x50000, 0x0008, channel, 1<<3) # WA0-2 dcc code forcing -> 300 [9] forcing ib code [8] forcing i code   @ 208, tx ser clk rstn
             self.mApb.write(0x50000, 0x0000, channel, 1<<3) # WA0-3 dcc code forcing -> 300 [9] forcing ib code [8] forcing i code   @ 200
@@ -1094,6 +1178,7 @@ class EVB_PMAD(object):
                 # WA0-5 toggle tx_10g_en to flush dtoa buffer
                 self.mApb.write(0x50100, 0<<6, channel, 1<<6)
                 self.mApb.write(0x50100, 1<<6, channel, 1<<6)
+
     def SetRxOff(self,b_keep_clk=True,channel=0):
         #self.mApb.write(0x63478, 0xf<<1, channel,0x1f<<1) # default 0x80, cal bypass [6:1] ([1] : VGA2 / [2] : VGA3 / [3] : VGA1 / [4] : FULL CAL) 0xf0 -> 0x80 by who 190906
         #self.mApb.write(0x60500, 0x1f<<2, channel, 0x1f<<2)   #
@@ -1114,9 +1199,11 @@ class EVB_PMAD(object):
         #self.mApb.write(0x60090, 0x0<<10, channel,0x1<<10)
         #self.mApb.write(0x60500, 0x0<<2, channel, 0x1f<<2)   #
         #self.mApb.write(0x60508, 0x00000020, channel)   # ioc full skip E2? 20? 0xc0 -> 0x20 by who 190906
+
     def SetRxOn(self,channel=0,b_tune=False):
         self.mApb.write(0x6008C, 1<<0, channel, mask=1<<0)
         #self.mApb.write(0x601dc, 0, channel)
+
     def SetTxCoding(self,graycoding=0,precoding=0,channel=0):
         if precoding == 1:
             self.mApb.write(0x50084,3<<3,channel,3<<3)
@@ -1126,6 +1213,7 @@ class EVB_PMAD(object):
             self.mApb.write(0x50084,1<<3,channel,3<<3) # bypass
         else:
             self.mApb.write(0x50084,0<<3,channel,3<<3) # PAM2
+
     def SetRxCoding(self,graycoding=0,precoding=0,channel=0):
         if precoding == 1:
             self.mApb.write(0x6008C,3<<3,channel,3<<3)
@@ -1135,8 +1223,10 @@ class EVB_PMAD(object):
             self.mApb.write(0x6008C,1<<3,channel,3<<3) # bypass
         else:
             self.mApb.write(0x6008C,0<<3,channel,3<<3) # PAM2
+
     def SetTxSwap(self,en=1,channel=0):
         self.mApb.write(0x50400,en,channel)
+
     def SetRxSwap(self,en=1,channel=0):
         self.mApb.write(0x60400,en<<1,channel,1<<1)
 #}}}
@@ -1148,19 +1238,22 @@ class EVB_PMAD(object):
         repeat = 4
         gain = (self.mApb.read(0x6002C,channel) & 0x1f)
         (minval,maxval) = self.GetAdcMinMax(adc_channel=0,channel=channel,mon_sel=1,repeat=repeat)
+
         while ((abs(maxval) > thld) or (abs(minval) > thld)) and (gain > 8):
             gain -= 2
             self.mApb.write(0x6002C,1<<5|gain,channel)
             (minval,maxval) = self.GetAdcMinMax(adc_channel=0,channel=channel,mon_sel=1,repeat=repeat)
-     
+      
     def TuneVga2(self,channel=0,thld=120):
         repeat = 4
         gain = (self.mApb.read(0x60028,channel) & 0xf)
         (minval,maxval) = self.GetAdcMinMax(adc_channel=0,channel=channel,mon_sel=1,repeat=repeat)
+
         while ((abs(maxval) > thld) or (abs(minval) > thld)):
             gain += 1
             self.mApb.write(0x60028,1<<4|gain,channel)
             (minval,maxval) = self.GetAdcMinMax(adc_channel=0,channel=channel,mon_sel=1,repeat=repeat)
+
     def TuneCm1(self,channel=0,c1max=85,c1min=50):
         cm1 = self.GetRxEqCoef(tap=-1,channel=channel,repeat=1)
         c1  = self.GetRxEqCoef(tap=1,channel=channel,repeat=4)
@@ -1173,6 +1266,7 @@ class EVB_PMAD(object):
             while (c1 > -c1min) and (cm1 < -5):
                 cm1 += 1
                 self.SetRxEqForce(tap=-1,coef=cm1,channel=channel)
+
     def TuneCtle(self,channel=0):
         c0 = self.GetRxEqCoef(0,channel,1)
         c1 = self.GetRxEqCoef(1,channel,4)
@@ -1201,6 +1295,7 @@ class EVB_PMAD(object):
                 else :
                     ch_length = 'long'
         print ("CTLE gain update(%s) to %d" % (ch_length,(15-gain)))
+
     def CompAdcOffset(self,channel=0,max_loop=1000):
         for rep in range(3):
             # wait to avoid the error is not in 0.4~0.6*avg
@@ -1220,6 +1315,7 @@ class EVB_PMAD(object):
                     break
             if loop >= max_loop:
                 break
+
             # wait to avoid the error is not in 0.4~0.6*avg
             loop = 0
             while True:
@@ -1236,6 +1332,7 @@ class EVB_PMAD(object):
                     break
             if loop >= max_loop:
                 break
+
             # compensate offset
             offset = -(((c0p_total + c0p_cnt/2)/c0p_cnt) - ((c0m_total+c0m_cnt/2)/c0m_cnt))
             offset = offset/2 if abs(offset) > 2 else 0
@@ -1262,6 +1359,7 @@ class EVB_PMAD(object):
         # self.mApb.write(0x00060020, 0x1f, channel)
         # self.mApb.write(0x000601dc, 0x00000000, channel)
         self.AfeAdaptation(ln_i=channel)
+
     def AfeAdaptation(self, ln_i=0):
         #self.DumpRegFile()
         if self.mCfg.b_dbg_print:
@@ -1270,8 +1368,10 @@ class EVB_PMAD(object):
         minLimit = 58
         vga1Gain = self.mApb.read(0x0006002c,ln_i) - 32
         ctleGain = 15 - (self.mApb.read(0x00060020,ln_i) - 16)
+
         maxVal = self.GetAdcMaxMin8(ln_i) >> 8
         minVal = self.GetAdcMaxMin8(ln_i) & 0xff
+
         adcVrefSel = self.mApb.read(0x00060034,ln_i)
         if (maxVal < minLimit) and (minVal < minLimit):
             while ((maxVal < minLimit) and (minVal < minLimit) and ((adcVrefSel >> 6) > 0)):
@@ -1282,12 +1382,14 @@ class EVB_PMAD(object):
             if self.mCfg.b_dbg_print:
                 print("adc vref sel update to 0x%`x" % (adcVrefSel >> 6))
 
+
         elif (maxVal > maxLimit) and (minVal > maxLimit):
             while ((maxVal > maxLimit) and (minVal > maxLimit) and (vga1Gain > 0xf)):
                 vga1Gain -= 8
                 self.mApb.write(0x0006002c, 0x20 + vga1Gain, ln_i)
                 maxVal = self.GetAdcMaxMin8(ln_i) >> 8
                 minVal = self.GetAdcMaxMin8(ln_i) & 0xff
+
                 # print("vga1gain= %d" %vga1Gain)
                 # print("Max= %d" %maxVal)
                 # print("Min= %d" %minVal)
@@ -1296,11 +1398,14 @@ class EVB_PMAD(object):
             #     self.mApb.write(0x0006002c, 0x20 + vga1Gain, ln_i)
             if self.mCfg.b_dbg_print:
                 print("vga1 update to 0x%x"%( vga1Gain))
+
         self.SwVga2Adap(ln_i)
+
         self.mApb.write(0x000601dc, 0x00000000, ln_i)
         data2230 = (self.mApb.read(0x00062230,ln_i) & 0xff)
         if (data2230 == 0xff or data2230 == 0):
             return -1
+
         self.mApb.write(0x00060128, 0x000,ln_i)
         self.SwCm1Adap(ln_i)
         self.AdcFineCalRestart(ln_i)
@@ -1309,6 +1414,7 @@ class EVB_PMAD(object):
             minVal = self.GetAdcMaxMin8(ln_i) & 0xff
             print("Max= %d" %maxVal)
             print("Min= %d" %minVal)
+
         c0 = self.mApb.read(0x6223C,ln_i)
         c1 = self.GetAvgCoeff(1, 4,ln_i)
         c2 = self.GetAvgCoeff(2, 4,ln_i)
@@ -1324,6 +1430,7 @@ class EVB_PMAD(object):
                 ctleUpdate = 2
             else:
                 ctleUpdate = 3
+
         if self.mCfg.b_dbg_print:
             if (ctleUpdate == 1):
                 print("CTLE gain update(short) to 0x%x" % (15 - ctleGain))
@@ -1331,6 +1438,7 @@ class EVB_PMAD(object):
                 print("CTLE gain update(med) to 0x%x" % (15 - ctleGain))
             elif (ctleUpdate == 3):
                 print("CTLE gain update(long) to 0x%x" % (15 - ctleGain))
+
         if (ctleUpdate != 0):
             self.SwVga2Adap(ln_i)
             self.AdcFineCalRestart(ln_i)
@@ -1341,11 +1449,13 @@ class EVB_PMAD(object):
             print("Max= %d" %maxVal)
             print("Min= %d" %minVal)
         return 0
+
     def AfeTuneScale(self, ln_i=0):
         rxstate = self.mApb.read(0x64000,ln_i)
         rxstate |= ((self.mApb.read(0x64004,ln_i) & 0x1ff) << 16)
         if (rxstate >> 18) & 1 != 1:
             return -1
+
         maxLimit = 61
         minLimit = 58
         maxVal = self.GetAdcMaxMin8(ln_i) >> 8
@@ -1358,7 +1468,8 @@ class EVB_PMAD(object):
             if (maxVal < minLimit and minVal < minLimit and (adcVrefSel >> 6) > 0):
                 adcVrefSel -= (1 << 6)
                 self.mApb.write(0x00060034, adcVrefSel, ln_i)
-                print("adc vref sel update to 0x%x" % (adcVrefSel >> 6))
+                if self.mCfg.b_dbg_print:
+                    print("adc vref sel update to 0x%x" % (adcVrefSel >> 6))
         maxVal = self.GetAdcMaxMin8(ln_i) >> 8
         minVal = self.GetAdcMaxMin8(ln_i) & 0xff
         if (maxVal > maxLimit and minVal > maxLimit):
@@ -1366,19 +1477,22 @@ class EVB_PMAD(object):
             if ((maxVal > maxLimit and minVal > maxLimit) and (adcVrefSel >> 6) < 4):
                 adcVrefSel += (1 << 6)
                 self.mApb.write(0x00060034, adcVrefSel, ln_i)
-                print("adc vref sel update to 0x%x"% (adcVrefSel >> 6))
+                if self.mCfg.b_dbg_print:
+                    print("adc vref sel update to 0x%x"% (adcVrefSel >> 6))
             self.SwVga2Adap(ln_i)
         self.SwCm1Adap(ln_i)
         self.AdcFineCalRestart(ln_i)
         return 0;
+
     def AdcFineCalRestart(self, channel=0):
         self.mApb.write(0x0006347c, 0xd000, channel)
         self.mApb.write(0x000601AC, 0<<1, channel,1<<1)
         self.mApb.write(0x000601AC, 1<<1, channel,1<<1)
-     
+      
         if self.mCfg.b_dbg_print:
             print("AdcFineCalRestart")
         #Delay(10)
+
     def GetAdcMaxMin8(self, ln_i=0):
         maxData = 0;
         minData = 64;
@@ -1388,14 +1502,16 @@ class EVB_PMAD(object):
                 self.mApb.write(0x00062248, (i << 4) | 1, ln_i)
                 data = self.mApb.read(0x0006224C ,ln_i);
                 #print("max ch : %d data: %d" %(i, data-64))
-             
+              
                 if (maxData < (data & 0xff00) >> 8):
                         maxData = (data & 0xff00) >> 8
                 if (minData > (data & 0xff)):
                         minData = data & 0xff
         return ((maxData - 64) << 8) + (64 - minData)
+
     def SwVga2Adap(self,ln_i=0):
         vga2Gain = 15 - (self.mApb.read(0x00060028,ln_i)-16)
+
         maxVal = self.GetAdcMaxMin8(ln_i) >> 8
         minVal = self.GetAdcMaxMin8(ln_i) & 0xff
         maxLimit = 62
@@ -1419,6 +1535,7 @@ class EVB_PMAD(object):
                 print("vga2 gain update to 0x%x"%( vga2Gain))
         if self.mCfg.b_dbg_print:
             print ("<SwVga2Adap> done")
+
     def SwCm1Adap(self, ln_i):
         cm1init = self.mApb.read(0x62270,ln_i)
         if (cm1init > 128):
@@ -1436,6 +1553,7 @@ class EVB_PMAD(object):
                 cm1 -= 1
                 self.phyEqCpre1Forcing(-cm1,ln_i)
                 c1 = self.GetAvgCoeff(1, 4,ln_i)
+
     def GetAvgCoeff(self, tap, avgNum, ln_i=0):
         result=0
         temp=0
@@ -1449,6 +1567,7 @@ class EVB_PMAD(object):
             addr = 0x6223c
         else:
             return 0xffff
+
         for i in range(avgNum):
             temp = self.mApb.read(addr,ln_i)
             if (temp > 128):
@@ -1457,6 +1576,7 @@ class EVB_PMAD(object):
                 result += temp
         result /= avgNum
         return int(result)
+
     def phyEqCpre1Forcing(self,forcingC1,ln_i=0):
         if (forcingC1 == 0):
             self.mApb.write(0x00060120, 0x100, ln_i)
@@ -1464,6 +1584,7 @@ class EVB_PMAD(object):
             self.mApb.write(0x00060120, 0x100 + 256 - forcingC1, ln_i)
         self.mApb.write(0x00061FF8, 0x4, ln_i)
         return 0
+
     def PrintCtleRegs(self,channel=0):
         r20 = self.mApb.read(0x00060020,channel)
         r38 = self.mApb.read(0x00060038,channel)
@@ -1474,6 +1595,7 @@ class EVB_PMAD(object):
         print("hfeq rsel(%d), bypass(%d), csel(%d), i_ctrl(%d), rl_ctrl(%d)" % (r20, (r38>>14)&1,(r38>>10)&0xf,(r38>>5)&0x1f,(r38>>0)&0x1f))
         print("vga1 rsel(%d),                       i_ctrl(%d), rl_ctrl(%d), oc_dac_pulldn(%d), oc_i_ctrl(%d)" % (r2c, (r50>>7)&0xf,(r50>>3)&0xf, (r50>>2)&1, (r50>>0)&0x3))
         print("vga2 rsel(%d), rs_ctrl(%d),          i_ctrl(%d), rl_ctrl(%d), oc_dac_pulldn(%d), oc_i_ctrl(%d)" % (r28, (r54>>11)&0x1f,(r54>>7)&0xf,(r54>>3)&0xf, (r54>>2)&1, (r54>>0)&0x3))
+
 
     def PrintTuneRegs(self,channel=0):
         print ("0x00060020 => 0x%x " % (self.mApb.read(0x00060020,channel)))
@@ -1495,10 +1617,11 @@ class EVB_PMAD(object):
 #----------------------------------------------------------------------------------------------------
     def SetTopPorts(self):
         self.mApb.write(0x24000024, 0x00000230 | self.mCfg.lane_en | self.mCfg.ext_clk<<6)
+
     def Reset(self):
         self.mApb.write(0x24000004, 0x00000003)
         self.mApb.write(0x24000004, 0x00000000)
-     
+      
     def SetSLB(self, channel=0):
         self.SetTxBase(channel)
         self.SetRxBase(channel)
@@ -1511,6 +1634,7 @@ class EVB_PMAD(object):
         self.SetRxEqForce(-1,-5,channel)
         #self.SetRxEqForce(1,-50,channel)
         self.mApb.write(0x60090, 0x400, channel) # ioc_cal_en
+
         if (self.mCfg.data_rate==10.3125) :
             self.SetRxEqForce(1,0,channel)
             self.mApb.write(0x60028, 0x001F, channel)   # vga2 r sel force [4] en [3:0] value high -> gain low
@@ -1532,6 +1656,7 @@ class EVB_PMAD(object):
             self.mApb.write(0x6008C, 2<<3, channel, 3<<3) # pam2:40 pam4:50
             self.mApb.write(0x60208, 0x0180, channel) # bist measure time [8:4] 0x19 => 10^9 in 25/10G
             self.SetRxEqForce(1,-60,channel)
+
     def SetELB(self, channel=0):
         self.SetTxBase(channel)
         self.SetRxBase(channel)
@@ -1539,6 +1664,7 @@ class EVB_PMAD(object):
         self.mApb.write(0x61008, 512-20, channel)
         self.mApb.write(0x640a8, 0x2, channel)
         self.mApb.write(0x640b4, 413, channel)
+
         if (self.mCfg.data_rate==10.3125) :
             self.mApb.write(0x60038, ((1 << 14) | (0 << 10) | (5 << 5) | 5), channel)   # hfef c sel [13:10] i ctrl [9:5], rl ctrl [4:0]
             self.mApb.write(0x60054, ((15 << 11) | (13 << 7) | (14 << 3)), channel)   # vga2 dac lsb ctrl [1:0] 0->3, rs [15:11] i ctrl [6:3], dac pull up [2] 40
@@ -1561,15 +1687,17 @@ class EVB_PMAD(object):
             self.mApb.write(0x60208, 0x0180, channel) # bist measure time [8:4] 0x19 => 10^9 in 25/10G
             self.SetRxEqForce(1,-60,channel)
             self.SetTxEqDecrease(0,0,0,channel=channel)
+
     def SetBoostCurrent(self,channel=0):
         self.cboost[channel] = 1
         if self.mCfg.b_dbg_print:
             print("Boost Current")
-        self.mApb.write(0x00060054, ((0 << 15) + (15 << 11) + (15 << 7) + (15 << 3) + (0 << 2) + 0), channel)
+        self.mApb.write(0x00060054, ((1 << 15) + (15 << 11) + (15 << 7) + (15 << 3) + (0 << 2) + 0), channel)
         self.mApb.write(0x00060050, ((15 << 7) + (15 << 3) + (0 << 2) + 0), channel)
         self.mApb.write(0x00060038, ((0 << 10) + (15 << 5) + 15), channel)
         self.mApb.write(0x00050020, 0x00000001, channel)
         self.mApb.write(0x00060048, 0x00007b9f, channel)
+
     def UnsetBoostCurrent(self,channel=0):
         self.cboost[channel] = 0
         if self.mCfg.b_dbg_print:
@@ -1579,10 +1707,12 @@ class EVB_PMAD(object):
         self.mApb.write(0x60038, 0<<10|11<<5|11, channel) # afe_hfeq i_ctrl, rl_ctrl
         self.mApb.write(0x00050020, 0x00000002, channel)
         self.mApb.write(0x00060048, 0x0000799f, channel)
+
     def SetRLB(self,b_boost_current=True,channel=0):
         cm1init = 20
         vga2Gain = 15
         ctleGain = 0
+
         if self.mCfg.b_dbg_print:
             print("SetRLB")
         self.SetTxBase(channel)
@@ -1592,6 +1722,7 @@ class EVB_PMAD(object):
         self.mApb.write(0x60020, 0x1f-ctleGain, channel)
         self.mApb.write(0x60028, 0x1f-vga2Gain, channel)
         self.mApb.write(0x6002C, 0x3f, channel)
+
         #self.mApb.write(0x63450, 0x000d, channel)   # debugging by who 190909
         self.mApb.write(0x63454, 0x6530, channel) # CDR
         self.mApb.write(0x60054, 0<<15|31<<11|15<<7|14<<3, channel) # vga2 rs_ctrl, rl_ctrl, i_ctrl
@@ -1599,9 +1730,11 @@ class EVB_PMAD(object):
         self.mApb.write(0x60038, 0<<10|11<<5|11, channel) # afe_hfeq i_ctrl, rl_ctrl
         if b_boost_current:
             self.SetBoostCurrent(channel)
+
         self.mApb.write(0x60064, 0x120f, channel)
         self.mApb.write(0x60040, 0xaa, channel) # pi in_/mix_rsel/i_ctrl=2
         self.mApb.write(0x60058, 0x128, channel)
+
         if self.mCfg.data_rate == 10.3125:
             self.mApb.write(0x00060054 , ( (8 << 11) + (15 << 7) + (15 << 3)),channel)     # vga2 dac lsb ctrl [1:0] 0->3, rs [15:11] i ctrl [6:3], dac pull up [2] 40
             self.mApb.write(0x00060050 , ((8 << 7) + (8 << 3)),channel)                    # vga1 dac lsb ctrl [1:0] 0->3, i ctrl [6:3], dac pull up [2] 40
@@ -1625,16 +1758,20 @@ class EVB_PMAD(object):
         # rx_en is off by default. therefore skip set 0x60088,0x9
         self.SetRxEqForce(-2, 0, channel)
 
+
     def TuneRx(self,channel=0):
         self.AfeTuneScale(channel)
+
     def Init(self):
         self.init_vars()
         self.SetTopPorts()
         self.Reset()
+
     def Start(self):
         self.Init()
         self.SetCmnBase()
         self.SetPll()
+
         for i in self.get_active_lane():
             if self.mCfg.media_mode == 'SLB':
                 self.SetSLB(i)
@@ -1642,8 +1779,10 @@ class EVB_PMAD(object):
                 self.SetELB(i)
             elif self.mCfg.media_mode == 'RLB':
                 self.SetRLB(self.mCfg.b_init_boost_current[i],i)
+
         if self.mCfg.cb_pmad_pre:
             self.mCfg.cb_pmad_pre(self)
+
         self.SetCmnStart()
         # In order to give same environment when sw uses On/Off, Do On/Off in advance.
         for i in self.get_active_lane():
@@ -1657,6 +1796,7 @@ class EVB_PMAD(object):
                 self.SetTxOff(channel=i)
                 self.SetRxOff(channel=i)
         #self.DumpRegFile(tag='init')
+
     def SetWA0_Post(self,channel):
         self.mApb.write(0x50000,0x8,channel)
         self.mApb.write(0x50000,0x0,channel)
@@ -1671,24 +1811,29 @@ class EVB_PMAD(object):
             self.mApb.write(0x63450,0x000d,channel)    # skew hold en [12] Debugging by who 190909
         else:
             self.mApb.write(0x63450,0x000b,channel)    # skew hold en [12] Debugging by who 190909
+
 #----------------------------------------------------------------------------------------------------
 # Measurement
 #----------------------------------------------------------------------------------------------------
     def Move_EOM_PI(self,phase=0,channel=0):
         cur_phase = self.mApb.read(0x61008,channel)
+
         while (cur_phase != phase):
             if(cur_phase < 256 and phase > 256) or (cur_phase > phase):
                 cur_phase = cur_phase - 1 if cur_phase != 0 else 512
             else:
                 cur_phase = cur_phase + 1 if cur_phase != 511 else 0
             self.mApb.write(0x61008,cur_phase,channel)
+
     def GetHorizontalCenter(self,channel=0):
         minData = 1 << 30
         minDataPosition = 64
         thres = 5
+
         self.mApb.write(0x00061020, 0, channel)    # EOM alpha
         self.mApb.write(0x00061018, 0x7017, channel)
         self.mApb.write(0x00060100, 0<<6, channel, 1<<6) # select data_path
+
         zeroRight = 0
         zeroLeft = 1000
         totalPhase = 128
@@ -1696,22 +1841,28 @@ class EVB_PMAD(object):
         if (self.is_bbpd_rate(self.data_rate)) : # 10G
             totalPhase *= 2
             phaseStep *= 2
+
         curPhase = self.mApb.read(0x00061008)
         phase_i_init = -40
+
         for phase_i in range(phase_i_init, totalPhase + 50, phaseStep) :
             if (phase_i < totalPhase / 2) :
                 phase = phase_i + 512 - totalPhase / 2
             else :
                 phase = phase_i - totalPhase / 2
+
             # move to initial state
             if (phase_i == phase_i_init) :
                 self.Move_EOM_PI(phase,channel)
+
             self.mApb.write(0x00061008, phase)
             self.mApb.write(0x00060100, 1<<7, channel, 1<<7) # eom_en
+
             data = self.mApb.read(0x00063428)
             while ((data & 0x2) != 2) :
                 data = self.mApb.read(0x00063428)
                 Delay(1)
+
             data1 = self.mApb.read(0x00063418)
             data2 = self.mApb.read(0x0006341C)
             data = data1 + (data2 <<16)
@@ -1724,6 +1875,7 @@ class EVB_PMAD(object):
             if (zeroLeft != 1000 and data > thres) :
                 zeroRight = phase_i
                 break
+
         print("left right : %d, %d" % (zeroLeft, zeroRight))
         if (zeroLeft != 1000 and zeroRight == 0) :
             return zeroLeft + totalPhase / 2
@@ -1732,31 +1884,40 @@ class EVB_PMAD(object):
         else :
             return (zeroRight + zeroLeft) / 2
 
+
     def GetBathtub(self,channel=0):
         totalPhase = 128 if self.is_bbpd_rate(self.mCfg.data_rate) else 128*2
         phaseStep  = 2 if self.is_bbpd_rate(self.mCfg.data_rate)  else 2*2
+
         curPhase = self.mApb.read(0x61008,channel)
         centerPosition = self.GetHorizontalCenter(channel)
         print("center : %d" %(centerPosition))
+
         filename = ("bathtub_%s_ln%s.txt" % (str(self.mCfg.data_rate),str(channel)))
         fs = open(filename,'w')
+
         self.mApb.write(0x61020,0,channel)
         self.mApb.write(0x61018,0x7017,channel)
         self.mApb.write(0x60100,0<<6,channel,1<<6) #eom_data_path_ch=0(test)
+
         for phase_i in range(0,totlaPhase-0,phaseStep):
             if (phase_i < totalPhase - centerPosition):
                 phase = phase_i + (512-totalPhase) + centerPosition
             else:
                 phase = phase_i - (totalPhase - centerPosition)
+
             if(phase_i==0):
                 self.Move_EOM_PI(phase)
+
             self.mApb.write(0x61008,phase,channel)
             self.mApb.write(0x60100,1<<7,channel,1<<7) # eom_en
+
             # poll eom_error_accum_done_2_3==1
             data = self.mApb.read(0x00063428)
             while ((data & 0x2) != 2) :
                 data = self.mApb.read(0x00063428)
                 Delay(1)
+
             data1 = self.mApb.read(0x00063418)
             data2 = self.mApb.read(0x0006341C)
             data = data1 + (data2 <<16)
@@ -1764,6 +1925,7 @@ class EVB_PMAD(object):
             fs.write('%s %s' % (phase_i,str(data)))
         fs.close()
         print ("Bathtub Done")
+
     def lin_fit_pulse(self, pam4=1, num_point=41, main=10, eq_out=0, plot_en=1, channel=0):
         rcParams.update({'figure.autolayout': True})
         axisFont = {'family': 'serif', 'weight': 'bold', 'size': 12}
@@ -1789,6 +1951,7 @@ class EVB_PMAD(object):
             if(dumpData[i]>127):
                 dumpData[i] -= 256
         dumpData=np.array(dumpData)
+
         ### LFP extraction
         prbs13=np.zeros(8191*2+13,dtype='int')
         prbs13[0:13] = np.array([1,1,0,1,0,1,0,1,0,0,0,0,0])
@@ -1796,6 +1959,7 @@ class EVB_PMAD(object):
             prbs13[i]=prbs13[i-13]^prbs13[i-12]^prbs13[i-2]^prbs13[i-1]
         prbs13temp = np.reshape(prbs13[13:],[2,-1],'Fort')
         prbs13q=np.zeros(8191,dtype='float')
+
         # gray encoding
         for i in range(8191):
             if (np.array_equal(prbs13temp[:,i], np.array([0,0]))):
@@ -1823,9 +1987,13 @@ class EVB_PMAD(object):
             plt.title("Impulse response",**titleFont)
             plt.xlabel("time [UI]",**titleFont)
             plt.xlim([-main,num_point-main])
-            plt.savefig(self.mCfg.dump_abs_path+'lfp.png',dpi=200)
+            if(eq_out==1):
+                plt.savefig(self.mCfg.dump_abs_path+'lfp_eq_out.png',dpi=200)
+            else:
+                plt.savefig(self.mCfg.dump_abs_path+'lfp_adc_out.png',dpi=200)
             plt.close()
         return list(range(-main,num_point-main)),list(matPulse)
+
 
     def get_impulse(self, patternwidth=16,channel=0):
         mon_sel=0
@@ -1853,7 +2021,7 @@ class EVB_PMAD(object):
             fs.write("%d\t%d\n"%(i, self.mApb.read(addr ,channel)))
         fs.close()
         return self.impulse_filt(filename,patternwidth)
- 
+  
     def impulse_filt(self,filename,patternwidth):
         sinc_en =0
         axisFont = {'family' : 'serif', 'weight' : 'bold','size'   : 12}
@@ -1861,7 +2029,7 @@ class EVB_PMAD(object):
         labelFont = {'family' : 'sans-serif','weight' : 'bold','size'   : 15}
         titleFont = {'family' : 'sans-serif','weight' : 'bold','size'   : 20}
         plt.rc('font', **axisFont)
-        inFile=open(filename)
+        inFile=open(filename) 
         inData=inFile.readlines()
         data=[int(x.strip().split()[1]) for x in inData[:256]]
         for i in range(256):
@@ -1901,8 +2069,10 @@ class EVB_PMAD(object):
             plt.savefig('../dump/impulse.png',dpi=200)
             plt.close()
         return list(range(-2,patternwidth-2)),avgData
+
     def meas_eye(self, HeightOnly=0,channel=0):
         return self.GetEye(HeightOnly,channel)
+
     def PMAD_GetHistoEom(self, DataOnly = 0, c0h = 0, mc0h = 0, channel=0) :
         if self.is_bbpd_rate(self.mCfg.data_rate):
             totalPhase = 256
@@ -1911,10 +2081,12 @@ class EVB_PMAD(object):
         phaseStep = 2
         totalEom = []
         self.mApb.write(0x61000, 0x1B8, channel)   # eom accu time
+
         centerPosition = self.getHorizontalCenter(channel)
         curPhase = self.mApb.read(0x00061008,channel)
         self.mApb.write(0x00061018, 0x7017,channel)
         self.mApb.write(0x00060100, 0<<6,channel,1<<6)  # RX EOM data path ch / ffe dfe sel[5]
+
         for phase_i in range(0, totalPhase, phaseStep) :
             print ("start phase_i : %d"%phase_i)
             totalEomTmp = self.PMAD_EomRead(curPhase, phase_i, centerPosition, totalPhase, phaseStep, channel=channel)
@@ -1927,36 +2099,45 @@ class EVB_PMAD(object):
                     break
             else :
                 totalEom += totalEomTmp
+
         if DataOnly == 1 :
             return totalEom
         else :
             self.PMAD_eomPlot(totalEom)
+
     def PMAD_EomReadFake(self, curPhase, phase_i, centerPosition, totalPhase, phaseStep, end=128, start=0, channel=0) :
         memSize = 128
         memStartAdd = 0x00063010
         totalEom = []
+
         if self.is_bbpd_rate(self.mCfg.data_rate):
             totalPhase *= 2
             phaseStep *= 2
+
         if phase_i < totalPhase - centerPosition :
             phase = phase_i + (512 - totalPhase) + centerPosition
         else :
             phase = phase_i - (totalPhase - centerPosition)
+
         self.mApb.write(0x00061008, phase, channel)
         self.mApb.write(0x00060100, 0<<7, channel, 1<<7)
         self.mApb.write(0x00060100, 1<<7, channel, 1<<7)
+
     def PMAD_EomRead(self, curPhase, phase_i, centerPosition, totalPhase, phaseStep, end=128, start=0, channel=0) :
         memSize = 128
         memStartAdd = 0x00063010
         totalEom = []
+
         # 10G
         if self.is_bbpd_rate(self.mCfg.data_rate):
             totalPhase *= 2
             phaseStep *= 2
+
         if phase_i < totalPhase - centerPosition :
             phase = phase_i + (512 - totalPhase) + centerPosition
         else :
             phase = phase_i - (totalPhase - centerPosition)
+
         if phase_i == 0 :
             while (curPhase != phase) :
                 if (curPhase < 256 and phase > 256) or curPhase > phase :
@@ -1968,9 +2149,11 @@ class EVB_PMAD(object):
                     if (curPhase >= 512) :
                         curPhase -= 512
                 self.mApb.write(0x00061008, curPhase, channel)
+
         self.mApb.write(0x00061008, phase, channel)
         self.mApb.write(0x00060100, 0<<7, channel, 1<<7)
         self.mApb.write(0x00060100, 1<<7, channel, 1<<7)
+
         for mem_i in range(0, memSize) :
             if mem_i < start or mem_i > end :
                 totalEom.append([phase_i, mem_i, 0])
@@ -1981,12 +2164,15 @@ class EVB_PMAD(object):
                 else :
                     data = self.mApb.read(memAdd,channel)
                 totalEom.append([phase_i, mem_i, data])
+
         self.mApb.write(0x00060100, 0<<7, channel, 1<<7)
         return totalEom
+
     def getHorizontalCenter(self,ln_i=0):
         minData = 1 << 30
         minDataPosition = 64
         thres = 5
+
         self.mApb.write(0x00061020, 0, ln_i)
         self.mApb.write(0x00061018, 0x7017, ln_i)
         self.mApb.write(0x00060100, 0<<6, ln_i, 1<<6)
@@ -1994,7 +2180,7 @@ class EVB_PMAD(object):
         zeroLeft = 1000
         totalPhase = 128
         phaseStep = self.mCfg.phaseStep
-     
+      
         if self.is_bbpd_rate(self.mCfg.data_rate):
             totalPhase *= 2
             phaseStep *= 2
@@ -2005,6 +2191,7 @@ class EVB_PMAD(object):
                 phase = phase_i + 512 - totalPhase / 2
             else:
                 phase = phase_i - totalPhase / 2
+
             if (phase_i == phase_i_init):
                 while (curPhase != phase):
                     if (curPhase < 256 and phase > 256 or curPhase > phase):
@@ -2019,7 +2206,7 @@ class EVB_PMAD(object):
             self.mApb.write(0x00061008, phase, ln_i)
             self.mApb.write(0x00060100, 0<<7, ln_i, 1<<7)
             self.mApb.write(0x00060100, 1<<7, ln_i, 1<<7)
-         
+          
             data = self.mApb.read(0x00063428 ,ln_i)
             while ((data & 0x2) != 2):
                 data = self.mApb.read(0x00063428 ,ln_i)
@@ -2041,12 +2228,15 @@ class EVB_PMAD(object):
             return int(zeroLeft + totalPhase / 2)
         elif (zeroLeft == 1000 and zeroRight == 0):
             return int(minDataPosition)
+
         return int((zeroRight + zeroLeft) / 2)
+
     def PMAD_rm3sigma(self, EomData, channel) :
         phases=set([int(x[0]) for x in EomData])
         vrefs=set([int(x[1]) for x in EomData])
         phases=sorted(list(phases))
         vrefs=sorted(list(vrefs))
+
         c0h = float(self.mApb.read(0x6223C,channel)+3)/2.0
         c0l = float(self.mApb.read(0x62240,channel)+1)/2.0
         vrefh = (c0h + c0l)/2.0
@@ -2055,6 +2245,7 @@ class EVB_PMAD(object):
         vrefh += 64
         vrefm += 64
         vrefl += 64
+
         cntNum = np.zeros((len(phases), 4))
         for phase in range(len(phases)) :
             for vref in range(len(vrefs)) :
@@ -2069,6 +2260,7 @@ class EVB_PMAD(object):
             #sigma3 = [cntNum[phase][0]*0.05, cntNum[phase][1]*0.05, cntNum[phase][2]*0.05, cntNum[phase][3]*0.05]
             sigma3 = [cntNum[phase][0]*0.0015, cntNum[phase][1]*0.0015, cntNum[phase][2]*0.0015, cntNum[phase][3]*0.0015]
             sigma3s = [sigma3[0], sigma3[1], sigma3[1], sigma3[2], sigma3[2], sigma3[3]]
+
             data0List  = list(range(int(-c0h+64), int(vrefl)))
             data0List.reverse()
             data1ListL = list(range(int(vrefl), int(-c0l+64)))
@@ -2078,8 +2270,10 @@ class EVB_PMAD(object):
             data2ListH = list(range(int(c0l+64), int(vrefh)))
             data2ListH.reverse()
             data3List  = list(range(int(vrefh), int(c0h+64)))
+
             #for x in range(int(-c0h+64-10), int(c0h+64+10)) :
             #    print (EomData[x][2])
+
             dataList = [data0List, data1ListL, data1ListH, data2ListL, data2ListH, data3List]
             for ListIdx in range(6) :
                 dataCumul = 0
@@ -2089,13 +2283,16 @@ class EVB_PMAD(object):
                         break
                     else :
                         EomData[phase*len(vrefs) + vref][2] = 0
+
         return EomData
+
     def PMAD_eomPlot(self, EomData):
         axisFont = {'family' : 'serif', 'weight' : 'bold','size'   : 12}
         textFont = {'family' : 'serif', 'weight' : 'bold','size'   : 11}
         labelFont = {'family' : 'sans-serif','weight' : 'bold','size'   : 15}
         titleFont = {'family' : 'sans-serif','weight' : 'bold','size'   : 20}
         plt.rc('font', **axisFont)
+
         phases=set([int(x[0]) for x in EomData])
         vrefs=set([int(x[1]) for x in EomData])
         phases=sorted(list(phases))
@@ -2110,6 +2307,7 @@ class EVB_PMAD(object):
         numPi=int(totalPi/stepPi)
         numLev=int(totalLev/stepLev)
         image = np.zeros((numPi,numLev)).astype(np.float)
+
         for row_i,row in enumerate(image):
             for col_i,col in enumerate(row):
                 image[row_i][col_i]=np.nan;
@@ -2117,6 +2315,7 @@ class EVB_PMAD(object):
             image[int(i/numLev)][numLev-1-i%numLev]=EomData[i][2]
             if(image[int(i/numLev)][numLev-1-i%numLev]==0):
                 image[int(i/numLev)][numLev-1-i%numLev]=np.nan;
+
         plt.imshow(np.array(image.T),extent=[-0.5,0.5,-int(totalLev/2),int(totalLev/2)],aspect='equal',cmap=plt.get_cmap('jet'),interpolation='nearest',alpha=1.0)
         plt.axis('auto')
         plt.grid()
@@ -2125,6 +2324,7 @@ class EVB_PMAD(object):
         plt.xlabel("Phase [UI]",**labelFont)
         plt.colorbar()
         plt.show()
+
     def CheckOverGainAdc(self, limit, ln_i=0):
         maxMin = self.GetAdcMaxMin(0,ln_i)
         maxVal = (maxMin >> 8) - 64
@@ -2139,17 +2339,18 @@ class EVB_PMAD(object):
             return 1
         else:
             return 0
+
     def GetAdcMaxMin(self,ch=0, ln_i=0):
         self.mApb.write(0x0006051c, 0x00000000, ln_i)
         self.mApb.write(0x00062248, (ch << 4) | 0, ln_i)
         self.mApb.write(0x00062248, (ch << 4) | 1, ln_i)
         data = self.mApb.read(0x0006224C ,ln_i);
         return data
+
     def GetBerToTxt(self,ber=0, channel=0):
         filename = ("ber_%s_ln%s.txt" % (str(self.mCfg.data_rate),str(channel)))
         fs = open(filename,'w')
         fs.write('%s\n' % (str(ber)))
         fs.close()
         return 0
-#}}} 
-
+#}}}  
