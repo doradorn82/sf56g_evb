@@ -1,5 +1,4 @@
 from evb_utils import *
-
 class EVB_CONFIG(object):
     def __init__(self):
         self.version = 1.0
@@ -10,7 +9,7 @@ class EVB_CONFIG(object):
         self.apb_delay = 0
         self.b_dbg_apb_read = False
         self.b_dbg_apb_write = False
-        self.b_dbg_print = False
+        self.b_dbg_print = True
         self.b_WA0 = True
         self.b_prot_en = False
         self.media_mode = 'RLB' #:= 'SLB'(internal channel),'ELB'(external channel),'RLB'(external long channel)
@@ -36,19 +35,16 @@ class EVB_CONFIG(object):
         self.eom_zero_thld = 1000
         self.b_use_txeq_lut = False
         self.gen_params()
-
     def gen_params(self):
         self.dump_abs_path = get_evb_path()+'\\'+self.dump_path
-
     def SetConfig(self,key,value):
         if key in self.__dict__.keys():
             self.__dict__[key] = value
             self.gen_params()
-
     def GetConfig(self,key):
         if key in self.__dict__.keys():
             return (self.__dict__[key])
-
     def GetCondition(self):
-        string = str(self.data_rate).replace('.','_')+'_'+str(self.vdd08)+'_'+str(self.vdd12)+'_'+self.process_corner+'_'+str(self.chip_num)
+        string = str(self.data_rate).replace('.','_')+'_'+self.process_corner
         return string
+

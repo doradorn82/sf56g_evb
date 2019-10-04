@@ -6,157 +6,183 @@ import matplotlib.ticker as mticker
 import copy
 #from scipy.optimize import curve_fit
 from matplotlib import rcParams
+from scipy import optimize
 def plot_favorite():
 	axisFont = {'family' : 'serif', 'weight' : 'bold','size'   : 12}
 	textFont = {'family' : 'serif', 'weight' : 'bold','size'   : 11}
 	labelFont = {'family' : 'sans-serif','weight' : 'bold','size'   : 15}
 	titleFont = {'family' : 'sans-serif','weight' : 'bold','size'   : 20}
+	rcParams.update({'figure.autolayout': True})
 	plt.rc('font', **axisFont)
 	return textFont,labelFont,titleFont
 def normFunc(x, xMean, sigma):
 	return 1/(sigma*np.sqrt(2*np.pi)) * np.e**(-0.5*((x-xMean)/sigma)**2)
 
-def bathtub_extrapolation_nrz(filename,countNum=19):
+def gaussian(x, amp, cen, wid):
+	return amp * np.exp(-(x-cen)**2 / wid)
+
+def bathtub_extrapolation_nrz(filename,filename2,countNum=29,countNum2=19,vrefSel=4):
 	textFont,labelFont,titleFont = plot_favorite()
 
 	inFileName=filename
+	inFileName2=filename2
 	numExtrap=2
 	ignLast=1
-	
+   
 	#sysPath='D:\\Work\\AutomationPjt\\DisplayPort_Automation_GBE\\WindowsFormsApp1\\bin\\Debug\\'
 	inFile	  = open(inFileName)
 	fileRead	= inFile.readlines()
-	adcCode	 = np.array(list([float(x.strip().split()[0]) for x in fileRead]))
+	inFile.close()
+	#adcCode	 = np.array(list([float(x.strip().split()[0])-len(fileRead)/2 for x in fileRead]))
+	if(vrefSel==4):
+		adcCode=np.linspace(-200,200,128)
+	elif(vrefSel==3):
+		adcCode=np.linspace(-190,190,128)
+	elif(vrefSel==2):
+		adcCode=np.linspace(-180,180,128)
+	elif(vrefSel==1):
+		adcCode=np.linspace(-170,170,128)
+	else:
+		adcCode=np.linspace(-165,165,128)
+
+
 	nrzHist	 = np.array(list([float(x.strip().split()[1]) for x in fileRead]))
-	
+	inFile	  = open(inFileName2)
+	fileRead	= inFile.readlines()
+	inFile.close()
+	dataLen=len(fileRead)
+	nrzHist2	 = np.array(list([float(x.strip().split()[1]) for x in fileRead]))
 	##Split histogram at center point
-	nrzZero = np.zeros(int(len(nrzHist)/2))
-	nrzLow  = np.hstack((nrzHist[:int(len(nrzHist)/2)],nrzZero))
-	nrzHigh = np.hstack((nrzZero,nrzHist[int(len(nrzHist)/2):]))
+	nrzZero = np.zeros(int(dataLen/2))
+	nrzLow  = np.hstack((nrzHist[:int(dataLen/2)],nrzZero))
+	nrzHigh = np.hstack((nrzZero,nrzHist[int(dataLen/2):]))
+	nrzZero2 = np.zeros(int(len(nrzHist2)/2))
+	nrzLow2  = np.hstack((nrzHist2[:int(len(nrzHist2)/2)],nrzZero2))
+	nrzHigh2 = np.hstack((nrzZero2,nrzHist2[int(len(nrzHist2)/2):]))
 	maxIdxLow  = np.argmax(nrzLow)
 	maxIdxHigh = np.argmax(nrzHigh)
-	
+   
 	cntMax = (2**16)-1
 	accMax = 2**countNum
-	
-	numClipLow  = 0.5*accMax-np.sum(nrzLow)
-	numClipHigh = 0.5*accMax-np.sum(nrzHigh)
-	
+	berMarginXList=[-12,-15,-17]
+   
 	clipIdxLow  = []
 	clipIdxHigh = []
-	for i in range(len(adcCode)):
+	for i in range(dataLen):
 		if(nrzLow[i] == cntMax):
-			clipIdxLow.append(i)
+			nrzLow[i] = nrzLow2[i]*(2**(countNum-countNum2))
 		if(nrzHigh[i] == cntMax):
-			clipIdxHigh.append(i)
-	
-	if not (len(clipIdxLow)==0):
-		fillCntLow = numClipLow//len(clipIdxLow)
-		resCntLow  = numClipLow - fillCntLow*len(clipIdxLow)
-		for i,idx in enumerate(clipIdxLow):
-			if(i == len(clipIdxLow)//2):
-				nrzLow[idx] += fillCntLow + resCntLow
-			else:
-				nrzLow[idx] += fillCntLow
-		pdfLow  = nrzLow/(0.5*accMax)
-	else:
-		pdfLow  = nrzLow/np.sum(nrzLow)
-	
-	if not (len(clipIdxHigh)==0):
-		fillCntHigh = numClipHigh//len(clipIdxHigh)
-		resCntHigh  = numClipHigh - fillCntHigh*len(clipIdxHigh)
-		for i,idx in enumerate(clipIdxHigh):
-			if(i == len(clipIdxHigh)//2):
-				nrzHigh[idx] += fillCntHigh + resCntHigh
-			else:
-				nrzHigh[idx] += fillCntHigh
-		pdfHigh = nrzHigh/(0.5*accMax)
-	else:
-		pdfHigh = nrzHigh/np.sum(nrzHigh)
+			nrzHigh[i] = nrzHigh2[i]*(2**(countNum-countNum2))
+	pdfLow  = nrzLow/np.sum(nrzLow)
+	pdfHigh = nrzHigh/np.sum(nrzHigh)
+	cdfLow  = np.zeros(dataLen)
+	cdfHigh = np.zeros(dataLen)
+	for i in range(dataLen):
+		cdfLow[i]  = sum(pdfLow[i:])
+		cdfHigh[i] = sum(pdfHigh[:i+1])
+	## Error function
+	errPdfLow  = cdfLow/2
+	errPdfHigh = cdfHigh/2
 
+	for i in range(dataLen):
+		if(errPdfLow[i] > 10**-5):
+			low1e5Index=i
+		if(errPdfLow[i] < 10**-15):
+			lowStopIndex=i
+			errPdfLow[i:]=[0]*(dataLen-i)
+			break
+	for i in range(dataLen):
+		if(errPdfHigh[i] > 10**-5):
+			high1e5Index=i
+			break
+	for i in range(dataLen):
+		if(errPdfHigh[i] > 10**-15):
+			highStartIndex=i
+			errPdfHigh[:i]=[0]*i
+			break
+	fitCdfLow  = np.zeros(dataLen)
+	fitCdfHigh = np.zeros(dataLen)
+	best_vals, covar = optimize.curve_fit(gaussian, adcCode, pdfLow,[1,-50,40]) 
+	for i in range(30):
+		fitPdfLow = gaussian(adcCode,best_vals[0],best_vals[1],best_vals[2]*(1+i*0.02))
+		fitPdfLow /= sum(fitPdfLow)
+		for j in range(dataLen):
+			fitCdfLow[j]  = sum(fitPdfLow[j:])
+		fitErrPdfLow  = fitCdfLow/2
+		if(fitErrPdfLow[lowStopIndex-2] >= errPdfLow[lowStopIndex-2]):
+			fitPdfLow = gaussian(adcCode,best_vals[0],best_vals[1],best_vals[2]*(1+(i-1)*0.02))
+			fitPdfLow /= sum(fitPdfLow)
+			for j in range(dataLen):
+				fitCdfLow[j]  = sum(fitPdfLow[j:])
+			fitErrPdfLow  = fitCdfLow/2
+			break
+	best_vals, covar = optimize.curve_fit(gaussian, adcCode, pdfHigh,[1,50,40]) 
+	for i in range(30):
+		fitPdfHigh = gaussian(adcCode,best_vals[0],best_vals[1],best_vals[2]*(1+i*0.02))
+		fitPdfHigh /= sum(fitPdfHigh)
+		for j in range(dataLen):
+			fitCdfHigh[j] = sum(fitPdfHigh[:j+1])
+		fitErrPdfHigh = fitCdfHigh/2
+		if(fitErrPdfHigh[highStartIndex+2] >= errPdfHigh[highStartIndex+2]):
+			fitPdfHigh = gaussian(adcCode,best_vals[0],best_vals[1],best_vals[2]*(1+i*0.02))
+			fitPdfHigh /= sum(fitPdfHigh)
+			for j in range(dataLen):
+				fitCdfHigh[j] = sum(fitPdfHigh[:j+1])
+			fitErrPdfHigh = fitCdfHigh/2
+			break
 
-	##CDF
-	cdfLow  = np.zeros(len(nrzHist))
-	cdfHigh = np.zeros(len(nrzHist))
-	for i in range(len(nrzHist)):
-		for j in range(i):
-			cdfLow[i]  += pdfLow[j]
-			cdfHigh[i] += pdfHigh[len(nrzHist)-1-j]
-	cdfHigh = cdfHigh[::-1]
+	for i in range(dataLen):
+		if(fitErrPdfLow[i] < 10**-15):
+			needExtraIndex = i
+			break
+	if(needExtraIndex>1):
+		for i in range(needExtraIndex,dataLen):
+			fitErrPdfLow[i] = fitErrPdfLow[needExtraIndex-1]/(fitErrPdfLow[needExtraIndex-2]/fitErrPdfLow[needExtraIndex-1])**(i-needExtraIndex+1)
 	
-	##Error function
-	errpdfLow  = (1-cdfLow)/2
-	errpdfHigh = (1-cdfHigh)/2
-	
-	validBerLow  = []
-	validBerHigh = []
-	validCodeLow  = []
-	validCodeHigh = []
-	for i in range(len(adcCode)):
-		if(errpdfLow[i] > 10**-15):
-			validBerLow.append(errpdfLow[i])
-			validCodeLow.append(i)
-		else:
-			errpdfLow[i]=0
-		if(errpdfHigh[i] > 10**-15):
-			validBerHigh.append(errpdfHigh[i])
-			validCodeHigh.append(i)
-		else:
-			errpdfHigh[i]=0
-	berEdge = validBerLow[-1] if validBerLow[-1] > validBerHigh[0] else validBerHigh[0]
-	
-	##Extrapolate bathtub
-	cOffset = len(adcCode)/2
-	extraCodeLow  = np.delete(adcCode,validCodeLow)
-	extraCodeHigh = np.delete(adcCode,validCodeHigh)
-	if(ignLast==1):
-		zLow = np.polyfit(validCodeLow[-numExtrap-1:-1],np.log10(validBerLow[-numExtrap-1:-1]),1)
-		extraLow = zLow[0]*np.hstack((validCodeLow[-numExtrap-1:],extraCodeLow))+zLow[1]
-		zHigh = np.polyfit(validCodeHigh[1:numExtrap+1],np.log10(validBerHigh[1:numExtrap+1]),1)
-		extraHigh = zHigh[0]*np.hstack((extraCodeHigh,validCodeHigh[:numExtrap+1]))+zHigh[1]
-	else:
-		zLow = np.polyfit(validCodeLow[-numExtrap:],np.log10(validBerLow[-numExtrap:]),1)
-		extraLow = zLow[0]*np.hstack((validCodeLow[-numExtrap:],extraCodeLow))+zLow[1]
-		zHigh = np.polyfit(validCodeHigh[:numExtrap],np.log10(validBerHigh[:numExtrap]),1)
-		extraHigh = zHigh[0]*np.hstack((extraCodeHigh,validCodeHigh[:numExtrap]))+zHigh[1]
-	
-	crossVal = (zHigh[1]-zLow[1])/(zLow[0]-zHigh[0])
-	berAtCross = 10**(zHigh[0]*crossVal+zHigh[1])
-	
-	ber12codeLow  = np.ceil((-12-zLow[1])/zLow[0])
-	ber12codeHigh = np.trunc((-12-zHigh[1])/zHigh[0])
-	ber12margin   = ber12codeHigh - ber12codeLow
-	
+	for i in range(dataLen):
+		if(fitErrPdfHigh[i] > 10**-15):
+			needExtraIndex = i
+			break
+	if(needExtraIndex<dataLen-2):
+		for i in range(0,needExtraIndex):
+			fitErrPdfHigh[i] = fitErrPdfHigh[needExtraIndex]/(fitErrPdfHigh[needExtraIndex+1]/fitErrPdfHigh[needExtraIndex])**(needExtraIndex-i)
+	fitLowX = np.interp(berMarginXList,np.log10(fitErrPdfLow[:low1e5Index:-1]),adcCode[:low1e5Index:-1])
+	fitHighX = np.interp(berMarginXList,np.log10(fitErrPdfHigh[:high1e5Index]),adcCode[:high1e5Index])
+	margin = (fitHighX-fitLowX)
+	for i in range(len(margin)):
+		if(margin[i]<=0):
+			margin[i]=0
+	fitCrossLowY = np.interp(0,adcCode,fitErrPdfLow)
+	fitCrossHighY = np.interp(0,adcCode,fitErrPdfHigh)
+	fitCrossX = np.interp(0,fitErrPdfHigh-fitErrPdfLow,adcCode)
+	fitCrossY = np.interp(fitCrossX,adcCode,fitErrPdfLow)
+   
 	##Plot result
 	plt.figure(figsize=[7,6])
-	plt.title('Estimated BER from Histogram',**titleFont)
-	plt.semilogy(adcCode-cOffset,errpdfLow,'bo')
-	plt.semilogy(adcCode-cOffset,errpdfHigh,'ro')
-	if(ignLast==1):
-		plt.semilogy(np.hstack((validCodeLow[-numExtrap-1:],extraCodeLow))-cOffset,10**extraLow,'b')
-		plt.semilogy(np.hstack((extraCodeHigh,validCodeHigh[:numExtrap+1]))-cOffset,10**extraHigh,'r')
-	else:
-		plt.semilogy(np.hstack((validCodeLow[-numExtrap:],extraCodeLow))-cOffset,10**extraLow,'b')
-		plt.semilogy(np.hstack((extraCodeHigh,validCodeHigh[:numExtrap]))-cOffset,10**extraHigh,'r')
-	plt.semilogy([ber12codeLow-cOffset,ber12codeHigh-cOffset],[10**-12,10**-12],'k--')
-	plt.text(ber12codeHigh-cOffset+2,10**-11.5,'margin=%dcode'%ber12margin,color='k',fontsize=12)
-	plt.text(crossVal-cOffset+2,berAtCross,'BER at X-point=%.3g'%berAtCross,color='k',fontsize=12)
-	plt.text(-64,10**-3.8,'numExtrap=%d\nignoreLast=%d'%(numExtrap,ignLast),color='gray',fontsize=10)
-	#plt.xlim([maxIdxLow-10-cOffset, maxIdxHigh+10-cOffset])
-	plt.ylim([10**-30,10])
+	plt.title('Bathtub BER',**titleFont)
+	plt.semilogy(adcCode,errPdfLow,'bo')
+	plt.semilogy(adcCode,fitErrPdfLow,'b',linewidth=2)
+	plt.semilogy(adcCode,errPdfHigh,'bo')
+	plt.semilogy(adcCode,fitErrPdfHigh,'b',linewidth=2)
+	for i in range(len(berMarginXList)):
+		plt.semilogy([fitLowX[i],fitHighX[i]],[10**berMarginXList[i]]*2,'k--')
+		plt.text(fitHighX[i],10**berMarginXList[i],' %.1f mV (1e%d)'%(margin[i],berMarginXList[i]),color='k',fontsize=12)
+	plt.text(fitCrossX,1e-28,'BER@L = %.2g\nBER@H = %.2g\nBER@X = %.2g'%(fitCrossLowY,fitCrossHighY,fitCrossY),color='k',fontsize=12)
+	#plt.text(fitCrossX,fitCrossY,'BER@L = %.2g\nBER@H = %.2g\nBER@X = %.2g'%(fitCrossLowY,fitCrossHighY,fitCrossY),color='k',fontsize=12)
+	plt.xlim([-200,200])
+	plt.ylim([1e-30,1])
 	plt.yticks(10**(np.arange(0.0,-31.0,step=-2.0)))
 	plt.minorticks_on()
 	plt.tick_params(axis='x',which='both',direction='out',length=4,pad=8)
-	#plt.grid(color='gray',dashes=(4,2))
 	plt.grid()
-	plt.xlabel('ADC code [7-bit]',**labelFont)
+	plt.xlabel('Voltage [mV]',**labelFont)
 	plt.ylabel('BER',**labelFont,fontsize=18)
 	plt.savefig(filename.replace('.txt','_bathtub.png'),dpi=200)
 	plt.close()
+	return margin,[fitCrossLowY,fitCrossHighY,fitCrossY]
 
-	return berAtCross
 
-def bathtub_extrapolation_pam4(filename,countNum=19):
+def bathtub_extrapolation_pam4(filename,filename2,countNum=29,countNum2=19):
 
 	rcParams.update({'figure.autolayout': True})
 	textFont,labelFont,titleFont = plot_favorite()
@@ -234,7 +260,7 @@ def bathtub_extrapolation_pam4(filename,countNum=19):
 	cdfPamFitReve = np.zeros((2**mu,len(adcCode)))
 	errPamFit	 = np.zeros((2**mu,len(adcCode)))
 	errPamFitReve = np.zeros((2**mu,len(adcCode)))
-	
+   
 	for i in range(2**mu):
 		#print('level %d'%i)
 		for j in range(int(pam4Bound[i]),int(pam4Bound[i+1]+1)):
@@ -323,7 +349,6 @@ def bathtub_extrapolation_pam4(filename,countNum=19):
 				errPamReve[i][j]=0
 				#errPamReve[i][j]=np.nan
 
-		#berEdge = validBerLow[-1] if validBerLow[-1] > validBerHigh[0] else validBerHigh[0]
 		extraCodePam.append(np.delete(adcCode,validCodePam[i]))
 		extraCodePamReve.append(np.delete(adcCode,validCodePamReve[i]))
 
@@ -494,69 +519,4 @@ def bathtub_extrapolation_pam4(filename,countNum=19):
 
 
 
-def accHisto_clip(arg):
-	fileName=arg[1].split('.txt')[0]+'.txt'
-	numIter=arg[1].split('_')[-1]
 
-	if(numIter=='0'):
-		inFile	  = open(fileName)
-		lines	= inFile.readlines()	
-		adcCode	 = np.array(list([float(x.strip().split()[0]) for x in lines]))
-		nrzHist	 = np.array(list([float(x.strip().split()[1]) for x in lines]))
-		
-		##Check and Compensate clipping
-		cntMax = (2**16)-1
-		accMax = 2**19
-		
-		numClip  = accMax-np.sum(nrzHist)
-		
-		clipIdx  = []
-		for i in range(len(adcCode)):
-			if(nrzHist[i] == cntMax):
-				clipIdx.append(i)
-
-		if not (len(clipIdx)==0):
-			fillCnt = numClip//len(clipIdx)
-			resCnt  = numClip - fillCnt*len(clipIdx)
-			for i,idx in enumerate(clipIdx):
-				if(i == len(clipIdx)//2):
-					nrzHist[idx] += fillCnt + resCnt
-				else:
-					nrzHist[idx] += fillCnt
-		outFile = open('histo_data_acc.txt', 'w')
-		for i in range(len(adcCode)):
-			outFile.write('%d %d\n'%(adcCode[i],nrzHist[i]))
-		outFile.close()
-
-	else:
-		accFile	 = open('histo_data_acc.txt')
-		accLines	= accFile.readlines()
-		adcCode	 = np.array(list([float(x.strip().split()[0]) for x in accLines]))
-		accHist	 = np.array(list([float(x.strip().split()[1]) for x in accLines]))
-		
-		inFile  = open(fileName)
-		lines   = inFile.readlines()
-		nrzHist = np.array(list([float(x.strip().split()[1]) for x in lines]))
-		
-		##Check and Compensate clipping
-		cntMax = (2**16)-1
-		accMax = 2**19
-		numClip  = accMax-np.sum(nrzHist)
-		clipIdx  = []
-		for i in range(len(adcCode)):
-			if(nrzHist[i] == cntMax):
-				clipIdx.append(i)
-		if not (len(clipIdx)==0):
-			fillCnt = numClip//len(clipIdx)
-			resCnt  = numClip - fillCnt*len(clipIdx)
-			for i,idx in enumerate(clipIdx):
-				if(i == len(clipIdx)//2):
-					nrzHist[idx] += fillCnt + resCnt
-				else:
-					nrzHist[idx] += fillCnt
-	  
-		accHist += nrzHist
-		outFile = open('histo_data_acc.txt', 'w')
-		for i in range(len(adcCode)):
-			outFile.write('%d %d\n'%(adcCode[i],accHist[i]))
-		outFile.close()

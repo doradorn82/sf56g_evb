@@ -21,7 +21,7 @@ class EVB_APB(object):
         raddr3 = EVBMain.apb_raddr3
         print ("raddr = 0x%x" % (raddr3<<24|raddr2<<16|raddr1<<8|raddr0))
         return EVBMain.apb_result
-    
+   
     def read(self,addr,channel=0):
         Delay(self.mCfg.apb_delay)
         raddr = addr+0x40000*channel
@@ -46,7 +46,7 @@ class EVB_APB(object):
         if self.mCfg.b_dbg_apb_write:
             print ("[ApbWrite] 0x%x <= 0x%x" % (waddr,wdata))
         Delay(self.mCfg.apb_delay)
-    
+   
     def multi_write(self,addr,data,lane_strb=0x1,mask=None):
         for i in range(4):
             if (lane_strb >> i) & 1 == 1:
@@ -54,3 +54,5 @@ class EVB_APB(object):
 
     def init_evb(self):
         EVBMain.EVB_Init()
+
+
