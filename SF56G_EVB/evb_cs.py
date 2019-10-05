@@ -1869,6 +1869,7 @@ class EVB_CS(object):
 									curPhase -= 512
 							self.mApb.write(0x00061008, curPhase, ln_i)
 					self.mApb.write(0x00061008, phase, ln_i)
+					#for alpha_i in range(1):
 					for alpha_i in range(-128,128,2):
 						#if alpha_i%64 == 0:
 						#	print("[EOM] (%3d.%4d) get info " % (phase_i,alpha_i))

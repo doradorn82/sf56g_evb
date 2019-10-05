@@ -34,6 +34,8 @@ class EVB_CONFIG(object):
         self.b_use_old_meas_eye = False
         self.eom_zero_thld = 1000
         self.b_use_txeq_lut = False
+        self.extra_ber_nrz_margin_list=[-12,-15,-17]
+        self.extra_ber_pam4_margin_list=[-9,-12]
         self.gen_params()
     def gen_params(self):
         self.dump_abs_path = get_evb_path()+'\\'+self.dump_path
@@ -47,4 +49,10 @@ class EVB_CONFIG(object):
     def GetCondition(self):
         string = str(self.data_rate).replace('.','_')+'_'+self.process_corner
         return string
+    def __repr__(self):
+        s = ''
+        for key,item in self.__dict__.items():
+            s += ('%25s = %s\n' % (key,item))
+        return s
+
 

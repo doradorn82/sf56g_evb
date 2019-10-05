@@ -53,6 +53,12 @@ class SF56G (object):
  def init_evb(self):
   self.mApb.init_evb()
   self.mPmad.Init()
+  rdata0 = self.mApb.read(0)
+  rdata1 = self.mApb.read(4)
+  if rdata0 == rdata1:
+      return -1
+  else:
+      return 0
 
  def set_datarate(self, data_rate=25.78125):
   self.SetConfig('data_rate',data_rate)
@@ -60,7 +66,10 @@ class SF56G (object):
  def act_chan_TX(self, data_patt="PRBS31", channel=0):
   if(data_patt == "CLK"):
    self.mPmad.SetTxUserPattern([0x3333,0x3333,0x3333,0x3333], channel)
-  self.mPmad.SetTxBist(data_patt=self.get_type_with_string(data_patt), en=1, channel=channel)
+  if(data_patt == "REMOTE"):
+   self.mPmad.SetTxRemote(channel=channel)
+  else:
+   self.mPmad.SetTxBist(data_patt=self.get_type_with_string(data_patt), en=1, channel=channel)
   self.mPmad.SetTxOn(channel)
  def act_chan_RX(self, data_patt="PRBS31", channel=0):
   if(data_patt == "CLK"):
