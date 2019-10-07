@@ -269,7 +269,7 @@ class EVB_PMAD(object):
 			if (zero_min >= 0) and (zero_max < 0) and height_data[i] > self.mCfg.histo_zero_thld:
 				zero_max = i
 		height = zero_max-zero_min
-		center = int((zero_max+zero_min)/2)
+		center = max(0,int((zero_max+zero_min)/2))
 		return (height,center)
 	def GetEye_HeightData(self,target=range(128),channel=0):
 		data = []

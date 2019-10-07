@@ -48,11 +48,20 @@ class SF56G (object):
 #----------------------------------------------------------------------------------------------------
 # API
 #----------------------------------------------------------------------------------------------------
+ def check_apb(self):
+  r0 = self.mApb.read(0)
+  r4 = self.mApb.read(4)
+  return (r0 != r4)
+
  def Delay(self,ms):
   Delay(ms)
  def init_evb(self):
   self.mApb.init_evb()
   self.mPmad.Init()
+  if not self.check_apb():
+   return -1
+  else:
+   return 0
 
  def set_datarate(self, data_rate=25.78125):
   self.SetConfig('data_rate',data_rate)

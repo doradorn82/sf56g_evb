@@ -7,6 +7,7 @@ class EVB_CONFIG(object):
         self.max_channel = 4
         self.ext_clk   = 0
         self.apb_delay = 0
+        self.apb_poll_delay = 1
         self.b_dbg_apb_read = False
         self.b_dbg_apb_write = False
         self.b_dbg_print = True
