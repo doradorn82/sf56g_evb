@@ -234,7 +234,6 @@ class EVB_PMAD(object):
                     state = 'END'
                     ptr_end = i
         return max(0,(ptr_end-ptr_beg))
-
     def GetEye_WidthData(self,c01,c12,c23,channel=0):
         ui_interval = 128
         # move to left boundary
@@ -259,7 +258,6 @@ class EVB_PMAD(object):
             w12.append(self.mApb.read(0x63010+4*c12,channel))
             w23.append(self.mApb.read(0x63010+4*c23,channel))
         return w01,w12,w23
-
     def GetEye_HnC(self,height_data,bot,top):
         zero_min = -1
         zero_max = -1
@@ -271,7 +269,7 @@ class EVB_PMAD(object):
             if (zero_min >= 0) and (zero_max < 0) and height_data[i] > self.mCfg.histo_zero_thld:
                 zero_max = i
         height = zero_max-zero_min
-        center = max(0,int((zero_max+zero_min)/2))
+        center = int((zero_max+zero_min)/2)
         return (height,center)
     def GetEye_HeightData(self,target=range(128),channel=0):
         data = []
@@ -281,7 +279,6 @@ class EVB_PMAD(object):
         for i in target:
             data.append(self.mApb.read(0x63010+4*i,channel))
         return data
-
     def SetEomZeroPosition(self,channel=0):
         curPhase = self.mApb.read(0x61008,channel)
         self.mApb.write(0x61018,0xc017,channel) #?
@@ -291,7 +288,6 @@ class EVB_PMAD(object):
             else:
                 curPhase -= 1
             self.mApb.write(0x61008,curPhase,channel)
-
     def SetEomPosition(self,target=0,channel=0):
         curPhase = self.mApb.read(0x61008,channel)
         self.mApb.write(0x61018,0xc017,channel) #?
@@ -308,7 +304,6 @@ class EVB_PMAD(object):
                 curPhase -= 1
                 curPhase = 511 if curPhase==-1 else curPhase
             self.mApb.write(0x61008,curPhase,channel)
-
     def GetEye_GetCenterPhase(self,height_center=64,channel=0):
         center_data = []
         eom_beg_ptr = -64
@@ -346,7 +341,6 @@ class EVB_PMAD(object):
         center = phase_beg + int(phase_len/2)
         center = center-512 if center >= 512 else center
         return center
-
     def GetEye_GetEomThld(self,center,height,phase,channel=0):
         self.SetEomPosition(phase,channel)
         self.mApb.write(0x60100, 0<<6, channel, 1<<6) # eom_data
@@ -361,7 +355,6 @@ class EVB_PMAD(object):
             return max(thld_data)
         else:
             return 0
-
     def GetStatus(self,measure_bits_db=30,extra_ber_en=1,HeightOnly=1,lin_fit_en=1,lin_fit_point=41,lin_fit_main=10,imp_eq_out=0,channel=0):
         result = {}
         # TxEQ
@@ -383,10 +376,10 @@ class EVB_PMAD(object):
         result['cboost'] = self.cboost[channel]
         # BER/EYE
         result['ber'] = self.GetBer(measure_bits_db,channel)
-        if(extra_ber_en==1):
+        if(extra_ber_en==1 and result['ber']<1e-6):
             result['voltage_margin'],result['extra_ber']=self.get_extra_ber(pam4=self.is_pam4_rate(self.mCfg.data_rate),ln_i=channel)
         else:
-            result['voltage_margin'],result['extra_ber']=[[0]],[[0,0,0]]
+            result['voltage_margin'],result['extra_ber']=[[0]],[[0.5,0.5,0.5]]
         eye = self.meas_eye(HeightOnly,channel)
         #eye = (0,0,0,0,0,0)
         result['eye01_height'] = eye[0]
@@ -400,7 +393,6 @@ class EVB_PMAD(object):
             result['lin_fit_x'],result['lin_fit_y'] = self.lin_fit_pulse(num_point=lin_fit_point,main=lin_fit_main,eq_out=imp_eq_out,channel=channel)
 
         return result
-
     def get_extra_ber(self, pam4, ln_i):
         memSize = 128
         curPhase = self.mApb.read(0x00061008, ln_i)
@@ -704,15 +696,15 @@ class EVB_PMAD(object):
         self.mApb.write(0x60100, 0x000000a0, channel)
         self.mApb.write(0x60104, 0x00004202, channel)   # c else lock thres [13:8] c0 lock thres [5:0]
         self.mApb.write(0x60108, 0x00007b74, channel)   # u value change after lock [15] 0x7b7d -> 0x7b74 by who 190906
-        self.mApb.write(0x6010c, 0x00007420, channel)   # c0_h init [7:0] c0_h u value [12:10]
+        self.mApb.write(0x6010c, 0x00007430, channel)   # c0_h init [7:0] c0_h u value [12:10]
         self.mApb.write(0x60110, 0x00000000, channel)
-        self.mApb.write(0x60114, 0x0000700f, channel)   # c0_l init [7:0] c0_h u value [12:10]
+        self.mApb.write(0x60114, 0x00007008, channel)   # c0_l init [7:0] c0_h u value [12:10]
         self.mApb.write(0x60118, 0x00000000, channel)
         self.mApb.write(0x6011c, 0x00000000, channel)
         self.mApb.write(0x60120, 0x00000000, channel)
         self.mApb.write(0x60124, 0x00000000, channel)
         self.mApb.write(0x60128, 0x00000000, channel)
-        self.mApb.write(0x6012c, 0x00000000, channel)   # c_post1_init  0xc0 -> 0x00 by who 190906
+        self.mApb.write(0x6012c, 0x000000c0, channel)   # c_post1_init  0xc0 -> 0x00 by who 190906
         self.mApb.write(0x60130, 0x00000000, channel)
         self.mApb.write(0x60134, 0x00000000, channel)
         self.mApb.write(0x60138, 0x00000000, channel)
@@ -1122,12 +1114,6 @@ class EVB_PMAD(object):
                 self.mApb.write(0x50100, 0<<6, channel, 1<<6)
                 self.mApb.write(0x50100, 1<<6, channel, 1<<6)
     def SetRxOff(self,b_keep_clk=True,channel=0):
-        #self.mApb.write(0x63478, 0xf<<1, channel,0x1f<<1) # default 0x80, cal bypass [6:1] ([1] : VGA2 / [2] : VGA3 / [3] : VGA1 / [4] : FULL CAL) 0xf0 -> 0x80 by who 190906
-        #self.mApb.write(0x60500, 0x1f<<2, channel, 0x1f<<2)   #
-        #self.mApb.write(0x60508, 0x000000e2, channel)   # ioc full skip E2? 20? 0xc0 -> 0x20 by who 190906
-        #self.mApb.write(0x60094, 0x0<<10, channel,0x1<<10)
-        #self.mApb.write(0x60090, 0x1<<10, channel,0x1<<10)
-        #self.mApb.write(0x60094, 0x1<<10, channel,0x1<<10)
         if self.mCfg.b_dbg_print:
             self.PrintIocCalState()
         # rx_pi=Active
@@ -1137,11 +1123,8 @@ class EVB_PMAD(object):
         self.mApb.write(0x601dc, 0x00000001, channel) # sq force
         # prot_rx_en=0
         self.mApb.write(0x6008C, 0<<0, channel, mask=1<<0)
-        #self.mApb.write(0x63478, 0x0<<1, channel,0x1f<<1)
-        #self.mApb.write(0x60090, 0x0<<10, channel,0x1<<10)
-        #self.mApb.write(0x60500, 0x0<<2, channel, 0x1f<<2)   #
-        #self.mApb.write(0x60508, 0x00000020, channel)   # ioc full skip E2? 20? 0xc0 -> 0x20 by who 190906
     def SetRxOn(self,channel=0,b_tune=False):
+        self.mApb.write(0x00060128, 0x100,channel)
         self.mApb.write(0x6008C, 1<<0, channel, mask=1<<0)
         #self.mApb.write(0x601dc, 0, channel)
     def SetTxCoding(self,graycoding=0,precoding=0,channel=0):
@@ -1297,15 +1280,19 @@ class EVB_PMAD(object):
         minLimit = 58
         vga1Gain = self.mApb.read(0x0006002c,ln_i) - 32
         ctleGain = 15 - (self.mApb.read(0x00060020,ln_i) - 16)
-        maxVal = self.GetAdcMaxMin8(ln_i) >> 8
-        minVal = self.GetAdcMaxMin8(ln_i) & 0xff
+        maxMin = self.GetAdcMaxMin8(ln_i)
+        maxVal = maxMin >> 8
+        minVal = maxMin & 0xff
+        print("Max= %d" %maxVal)
+        print("Min= %d" %minVal)
         adcVrefSel = self.mApb.read(0x00060034,ln_i)
-        if (maxVal < minLimit) and (minVal < minLimit):
-            while ((maxVal < minLimit) and (minVal < minLimit) and ((adcVrefSel >> 6) > 0)):
+        if (maxVal +minVal < minLimit*2):
+            while ((maxVal +minVal <minLimit*2) and ((adcVrefSel >> 6) > 0)):
                 adcVrefSel -= (1 << 6)
                 self.mApb.write(0x00060034, adcVrefSel, ln_i)
-                maxVal = self.GetAdcMaxMin8(ln_i) >> 8
-                minVal = self.GetAdcMaxMin8(ln_i) & 0xff
+                maxMin = self.GetAdcMaxMin8(ln_i)
+                maxVal = maxMin >> 8
+                minVal = maxMin & 0xff
             if self.mCfg.b_dbg_print:
                 print("adc vref sel update to 0x%x" % (adcVrefSel >> 6))
 
@@ -1313,8 +1300,9 @@ class EVB_PMAD(object):
             while ((maxVal+minVal > maxLimit*2) and (vga1Gain > 0xf)):
                 vga1Gain -= 8
                 self.mApb.write(0x0006002c, 0x20 + vga1Gain, ln_i)
-                maxVal = self.GetAdcMaxMin8(ln_i) >> 8
-                minVal = self.GetAdcMaxMin8(ln_i) & 0xff
+                maxMin = self.GetAdcMaxMin8(ln_i)
+                maxVal = maxMin >> 8
+                minVal = maxMin & 0xff
             if ((maxVal+minVal) < 110):
                  vga1Gain += 8
                  self.mApb.write(0x0006002c, 0x20 + vga1Gain, ln_i)
@@ -1332,13 +1320,15 @@ class EVB_PMAD(object):
         self.SwCm1Adap(ln_i)
         self.AdcFineCalRestart(ln_i)
         if self.mCfg.b_dbg_print:
-            maxVal = self.GetAdcMaxMin8(ln_i) >> 8
-            minVal = self.GetAdcMaxMin8(ln_i) & 0xff
+            maxMin = self.GetAdcMaxMin8(ln_i)
+            maxVal = maxMin >> 8
+            minVal = maxMin & 0xff
             print("Max= %d" %maxVal)
             print("Min= %d" %minVal)
         c0 = self.mApb.read(0x6223C,ln_i)
         c1 = self.GetAvgCoeff(1, 4,ln_i)
         c2 = self.GetAvgCoeff(2, 4,ln_i)
+        self.PrintAllRxCoef(ln_i)
         ctleUpdate = 0
         while (((c2 > 35 and -c1 < 50) or (-c1 >= 50 and -c1 < 80 and c2 > 25) or (-c1 >= 80 and c2 > 20)) and ctleGain < 15):
             ctleGain += 1
@@ -1363,8 +1353,9 @@ class EVB_PMAD(object):
             self.AdcFineCalRestart(ln_i)
         if self.mCfg.b_dbg_print:
             self.PrintTuneRegs(ln_i)
-            maxVal = self.GetAdcMaxMin8(ln_i) >> 8
-            minVal = self.GetAdcMaxMin8(ln_i) & 0xff
+            maxMin = self.GetAdcMaxMin8(ln_i)
+            maxVal = maxMin >> 8
+            minVal = maxMin & 0xff
             print("Max= %d" %maxVal)
             print("Min= %d" %minVal)
         return 0
@@ -1375,19 +1366,22 @@ class EVB_PMAD(object):
             return -1
         maxLimit = 61
         minLimit = 58
-        maxVal = self.GetAdcMaxMin8(ln_i) >> 8
-        minVal = self.GetAdcMaxMin8(ln_i) & 0xff
+        maxMin = self.GetAdcMaxMin8(ln_i)
+        maxVal = maxMin >> 8
+        minVal = maxMin & 0xff
         if (maxVal < minLimit and minVal < minLimit):
             self.SwVga2Adap(ln_i)
-            maxVal = self.GetAdcMaxMin8(ln_i) >> 8
-            minVal = self.GetAdcMaxMin8(ln_i) & 0xff
+            maxMin = self.GetAdcMaxMin8(ln_i)
+            maxVal = maxMin >> 8
+            minVal = maxMin & 0xff
             adcVrefSel = self.mApb.read(0x00060034,ln_i)
             if (maxVal < minLimit and minVal < minLimit and (adcVrefSel >> 6) > 0):
                 adcVrefSel -= (1 << 6)
                 self.mApb.write(0x00060034, adcVrefSel, ln_i)
                 print("adc vref sel update to 0x%x" % (adcVrefSel >> 6))
-        maxVal = self.GetAdcMaxMin8(ln_i) >> 8
-        minVal = self.GetAdcMaxMin8(ln_i) & 0xff
+        maxMin = self.GetAdcMaxMin8(ln_i)
+        maxVal = maxMin >> 8
+        minVal = maxMin & 0xff
         if (maxVal > maxLimit and minVal > maxLimit):
             adcVrefSel = self.mApb.read(0x00060034,ln_i)
             if ((maxVal > maxLimit and minVal > maxLimit) and (adcVrefSel >> 6) < 4):
@@ -1423,29 +1417,28 @@ class EVB_PMAD(object):
         return ((maxData - 64) << 8) + (64 - minData)
     def SwVga2Adap(self,ln_i=0):
         vga2Gain = 15 - (self.mApb.read(0x00060028,ln_i)-16)
-        maxVal = self.GetAdcMaxMin8(ln_i) >> 8
-        minVal = self.GetAdcMaxMin8(ln_i) & 0xff
+        maxMin = self.GetAdcMaxMin8(ln_i)
+        maxVal = maxMin >> 8
+        minVal = maxMin & 0xff
         maxLimit = 62
-        if self.mCfg.b_dbg_print:
-            print ("<SwVga2Adap> start")
         if ((maxVal > maxLimit - 1 or minVal > maxLimit) and vga2Gain > 0):
             while ((maxVal > maxLimit - 1 or minVal > maxLimit) and vga2Gain > 0):
                 vga2Gain -= 1
                 self.mApb.write(0x00060028, 0x0000001f - vga2Gain, ln_i)
-                maxVal = self.GetAdcMaxMin8(ln_i) >> 8
-                minVal = self.GetAdcMaxMin8(ln_i) & 0xff
+                maxMin = self.GetAdcMaxMin8(ln_i)
+                maxVal = maxMin >> 8
+                minVal = maxMin & 0xff
             if self.mCfg.b_dbg_print:
                 print("vga2 gain update to 0x%x"%( vga2Gain))
         if (maxVal < maxLimit - 3 and minVal < maxLimit - 2 and vga2Gain < 0xf):
             while (maxVal < maxLimit - 3 and minVal < maxLimit - 2 and vga2Gain < 0xf):
                 vga2Gain += 1
                 self.mApb.write(0x00060028, 0x0000001f - vga2Gain, ln_i)
-                maxVal = self.GetAdcMaxMin8(ln_i) >> 8
-                minVal = self.GetAdcMaxMin8(ln_i) & 0xff
+                maxMin = self.GetAdcMaxMin8(ln_i)
+                maxVal = maxMin >> 8
+                minVal = maxMin & 0xff
             if self.mCfg.b_dbg_print:
                 print("vga2 gain update to 0x%x"%( vga2Gain))
-        if self.mCfg.b_dbg_print:
-            print ("<SwVga2Adap> done")
     def SwCm1Adap(self, ln_i):
         cm1init = self.mApb.read(0x62270,ln_i)
         if (cm1init > 128):
@@ -1607,7 +1600,7 @@ class EVB_PMAD(object):
         self.mApb.write(0x00050020, 0x00000002, channel)
         self.mApb.write(0x00060048, 0x0000799f, channel)
     def SetRLB(self,b_boost_current=True,channel=0):
-        cm1init = 15
+        cm1init = 20
         vga2Gain = 15
         ctleGain = 0
         if self.mCfg.b_dbg_print:

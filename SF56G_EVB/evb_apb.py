@@ -29,15 +29,6 @@ class EVB_APB(object):
         if self.mCfg.b_dbg_apb_read:
             print ("[ApbRead] 0x%x => 0x%x" % (raddr,rdata))
         return rdata
-    
-    def poll(self,addr,data,channel=0,mask=0xffff,timeout=1000):
-        rdata = self.read(addr,channel)
-        cnt   = 0
-        while ((rdata & mask) != data) and ((cnt < timeout) or (timeout < 0)):
-            rdata = self.read(addr,channel)
-            Delay(self.mCfg.apb_poll_delay)
-        if ((cnt >= timeout) and (timeout > 0)):
-            print("[ApbPoll] timeout to poll (0x%x(%d) => 0x%x & 0x%x)" % (addr,channel,data,mask))
 
     def write(self,addr,data,channel=0,mask=None,track=False):
         waddr = addr+0x40000*channel
