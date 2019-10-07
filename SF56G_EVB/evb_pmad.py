@@ -234,6 +234,7 @@ class EVB_PMAD(object):
                     state = 'END'
                     ptr_end = i
         return max(0,(ptr_end-ptr_beg))
+
     def GetEye_WidthData(self,c01,c12,c23,channel=0):
         ui_interval = 128
         # move to left boundary
@@ -258,6 +259,7 @@ class EVB_PMAD(object):
             w12.append(self.mApb.read(0x63010+4*c12,channel))
             w23.append(self.mApb.read(0x63010+4*c23,channel))
         return w01,w12,w23
+
     def GetEye_HnC(self,height_data,bot,top):
         zero_min = -1
         zero_max = -1
@@ -269,7 +271,7 @@ class EVB_PMAD(object):
             if (zero_min >= 0) and (zero_max < 0) and height_data[i] > self.mCfg.histo_zero_thld:
                 zero_max = i
         height = zero_max-zero_min
-        center = int((zero_max+zero_min)/2)
+        center = max(0,int((zero_max+zero_min)/2))
         return (height,center)
     def GetEye_HeightData(self,target=range(128),channel=0):
         data = []
@@ -279,6 +281,7 @@ class EVB_PMAD(object):
         for i in target:
             data.append(self.mApb.read(0x63010+4*i,channel))
         return data
+
     def SetEomZeroPosition(self,channel=0):
         curPhase = self.mApb.read(0x61008,channel)
         self.mApb.write(0x61018,0xc017,channel) #?
@@ -288,6 +291,7 @@ class EVB_PMAD(object):
             else:
                 curPhase -= 1
             self.mApb.write(0x61008,curPhase,channel)
+
     def SetEomPosition(self,target=0,channel=0):
         curPhase = self.mApb.read(0x61008,channel)
         self.mApb.write(0x61018,0xc017,channel) #?
@@ -304,6 +308,7 @@ class EVB_PMAD(object):
                 curPhase -= 1
                 curPhase = 511 if curPhase==-1 else curPhase
             self.mApb.write(0x61008,curPhase,channel)
+
     def GetEye_GetCenterPhase(self,height_center=64,channel=0):
         center_data = []
         eom_beg_ptr = -64
@@ -341,6 +346,7 @@ class EVB_PMAD(object):
         center = phase_beg + int(phase_len/2)
         center = center-512 if center >= 512 else center
         return center
+
     def GetEye_GetEomThld(self,center,height,phase,channel=0):
         self.SetEomPosition(phase,channel)
         self.mApb.write(0x60100, 0<<6, channel, 1<<6) # eom_data
@@ -355,6 +361,7 @@ class EVB_PMAD(object):
             return max(thld_data)
         else:
             return 0
+
     def GetStatus(self,measure_bits_db=30,extra_ber_en=1,HeightOnly=1,lin_fit_en=1,lin_fit_point=41,lin_fit_main=10,imp_eq_out=0,channel=0):
         result = {}
         # TxEQ
@@ -393,6 +400,7 @@ class EVB_PMAD(object):
             result['lin_fit_x'],result['lin_fit_y'] = self.lin_fit_pulse(num_point=lin_fit_point,main=lin_fit_main,eq_out=imp_eq_out,channel=channel)
 
         return result
+
     def get_extra_ber(self, pam4, ln_i):
         memSize = 128
         curPhase = self.mApb.read(0x00061008, ln_i)
@@ -1599,7 +1607,7 @@ class EVB_PMAD(object):
         self.mApb.write(0x00050020, 0x00000002, channel)
         self.mApb.write(0x00060048, 0x0000799f, channel)
     def SetRLB(self,b_boost_current=True,channel=0):
-        cm1init = 20
+        cm1init = 15
         vga2Gain = 15
         ctleGain = 0
         if self.mCfg.b_dbg_print:
