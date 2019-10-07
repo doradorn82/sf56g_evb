@@ -50,7 +50,11 @@ class SF56G (object):
 #----------------------------------------------------------------------------------------------------
  def Delay(self,ms):
   Delay(ms)
- def init_evb(self):
+ def init_evb(self,channels):
+  lane_en = 0
+  for c in channels:
+   lane_en += 1<<c
+  self.mCfg.lane_en = lane_en
   self.mApb.init_evb()
   self.mPmad.Init()
   rdata0 = self.mApb.read(0)

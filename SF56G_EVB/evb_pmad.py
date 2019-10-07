@@ -1293,8 +1293,6 @@ class EVB_PMAD(object):
         maxMin = self.GetAdcMaxMin8(ln_i)
         maxVal = maxMin >> 8
         minVal = maxMin & 0xff
-        print("Max= %d" %maxVal)
-        print("Min= %d" %minVal)
         adcVrefSel = self.mApb.read(0x00060034,ln_i)
         if (maxVal +minVal < minLimit*2):
             while ((maxVal +minVal <minLimit*2) and ((adcVrefSel >> 6) > 0)):
@@ -1338,7 +1336,6 @@ class EVB_PMAD(object):
         c0 = self.mApb.read(0x6223C,ln_i)
         c1 = self.GetAvgCoeff(1, 4,ln_i)
         c2 = self.GetAvgCoeff(2, 4,ln_i)
-        self.PrintAllRxCoef(ln_i)
         ctleUpdate = 0
         while (((c2 > 35 and -c1 < 50) or (-c1 >= 50 and -c1 < 80 and c2 > 25) or (-c1 >= 80 and c2 > 20)) and ctleGain < 15):
             ctleGain += 1
@@ -1388,7 +1385,8 @@ class EVB_PMAD(object):
             if (maxVal < minLimit and minVal < minLimit and (adcVrefSel >> 6) > 0):
                 adcVrefSel -= (1 << 6)
                 self.mApb.write(0x00060034, adcVrefSel, ln_i)
-                print("adc vref sel update to 0x%x" % (adcVrefSel >> 6))
+                if self.mCfg.b_dbg_print:
+                    print("adc vref sel update to 0x%x" % (adcVrefSel >> 6))
         maxMin = self.GetAdcMaxMin8(ln_i)
         maxVal = maxMin >> 8
         minVal = maxMin & 0xff
@@ -1397,7 +1395,8 @@ class EVB_PMAD(object):
             if ((maxVal > maxLimit and minVal > maxLimit) and (adcVrefSel >> 6) < 4):
                 adcVrefSel += (1 << 6)
                 self.mApb.write(0x00060034, adcVrefSel, ln_i)
-                print("adc vref sel update to 0x%x"% (adcVrefSel >> 6))
+                if self.mCfg.b_dbg_print:
+                    print("adc vref sel update to 0x%x"% (adcVrefSel >> 6))
             self.SwVga2Adap(ln_i)
         self.SwCm1Adap(ln_i)
         self.AdcFineCalRestart(ln_i)
@@ -1595,7 +1594,7 @@ class EVB_PMAD(object):
         self.cboost[channel] = 1
         if self.mCfg.b_dbg_print:
             print("Boost Current")
-        self.mApb.write(0x00060054, ((1 << 15) + (15 << 11) + (15 << 7) + (15 << 3) + (0 << 2) + 0), channel)
+        self.mApb.write(0x00060054, ((0 << 15) + (15 << 11) + (15 << 7) + (15 << 3) + (0 << 2) + 0), channel)
         self.mApb.write(0x00060050, ((15 << 7) + (15 << 3) + (0 << 2) + 0), channel)
         self.mApb.write(0x00060038, ((0 << 10) + (15 << 5) + 15), channel)
         self.mApb.write(0x00050020, 0x00000001, channel)
