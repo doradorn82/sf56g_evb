@@ -72,7 +72,7 @@ class EVB_PMAD(object):
             fh.writelines('[ln%d] 0x%x => 0x%x\n' % (channel,addr,data))
             addr += 4
     def DumpRegFile(self,target=['rx'],tag='',channel=0):
-        file_name = self.mCfg.dump_path+'regdump'+tag+'.txt'
+        file_name = self.mCfg.dump_abs_path+'regdump'+tag+'.txt'
         fh = open(file_name,'w')
         if self.mCfg.b_dbg_print:
             print ("DumpRegFile ln%d - (%s)" % (channel,target))
@@ -383,6 +383,7 @@ class EVB_PMAD(object):
         result['ber'] = self.GetBer(measure_bits_db,channel)
         # log at exceptional case
         if result['ber'] >= self.mCfg.log_ber_thld:
+            print("logging by ber=%4.2e"%result['ber'])
             date = datetime.datetime.now()
             date_str = '_%s%s%s_%s%s' % (str(date.year),str(date.month),str(date.day),str(date.hour),str(date.minute))
             self.DumpRegFile(target=['tx','rx','cmn'],tag=date_str,channel=channel)
