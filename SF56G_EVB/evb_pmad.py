@@ -72,7 +72,7 @@ class EVB_PMAD(object):
             fh.writelines('[ln%d] 0x%x => 0x%x\n' % (channel,addr,data))
             addr += 4
     def DumpRegFile(self,target=['rx'],tag='',channel=0):
-        file_name = self.mCfg.dump_abs_path+'regdump'+tag+'.txt'
+        file_name = self.mCfg.dump_abs_path+'regdump_ln'+str(channel)+tag+'.txt'
         fh = open(file_name,'w')
         if self.mCfg.b_dbg_print:
             print ("DumpRegFile ln%d - (%s)" % (channel,target))
