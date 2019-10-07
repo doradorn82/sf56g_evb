@@ -74,7 +74,8 @@ class SF56G (object):
  def act_chan_RX(self, data_patt="PRBS31", channel=0):
   if(data_patt == "CLK"):
    self.mPmad.SetRxUserPattern([0x3333,0x3333,0x3333,0x3333], channel)
-  self.mPmad.SetRxBist(data_patt=self.get_type_with_string(data_patt), en=1, channel=channel)
+  if(data_patt != "REMOTE"):
+   self.mPmad.SetRxBist(data_patt=self.get_type_with_string(data_patt), en=1, channel=channel)
   self.mPmad.SetRxOn(channel)
  def off_chan_TX(self, channel=0):
   self.mPmad.SetTxOff(channel)
