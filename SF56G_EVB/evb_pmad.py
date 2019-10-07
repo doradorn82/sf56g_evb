@@ -269,7 +269,7 @@ class EVB_PMAD(object):
             if (zero_min >= 0) and (zero_max < 0) and height_data[i] > self.mCfg.histo_zero_thld:
                 zero_max = i
         height = zero_max-zero_min
-        center = int((zero_max+zero_min)/2)
+        center = max(0,int((zero_max+zero_min)/2))
         return (height,center)
     def GetEye_HeightData(self,target=range(128),channel=0):
         data = []
@@ -1838,7 +1838,10 @@ class EVB_PMAD(object):
         startIndex1=abs(matCorr1[:8191]).argmax()
         matX2=np.ones((num_point+1,256))
         for i in range(num_point):
-            matX2[i]=matX1[i+startIndex1-main]
+            if(i+startIndex1-main < len(matX1)):
+                matX2[i]=matX1[i+startIndex1-main]
+            else:
+                return [],[]
         matP=np.dot(matY,np.dot(matX2.transpose(), np.linalg.inv(np.dot(matX2,matX2.transpose()))))
         matPulse=matP[0:num_point]
         if(plot_en):
