@@ -36,6 +36,8 @@ class EVB_CONFIG(object):
         self.b_use_txeq_lut = False
         self.extra_ber_nrz_margin_list=[-12,-15,-17]
         self.extra_ber_pam4_margin_list=[-9,-12]
+        self.log_ber_thld = 5*1e-1
+        self.log_target   = ['tx','rx','cmn']
         self.gen_params()
     def gen_params(self):
         self.dump_abs_path = get_evb_path()+'\\'+self.dump_path

@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from evb_plot import *
 import evb_extra
+import datetime
+
 class EVB_PMAD(object):
     def __init__(self):
         # port
@@ -69,29 +71,32 @@ class EVB_PMAD(object):
             data = self.mApb.read(addr,channel)
             fh.writelines('[ln%d] 0x%x => 0x%x\n' % (channel,addr,data))
             addr += 4
-    def DumpRegFile(self,target='rx',tag='',channel=0):
+    def DumpRegFile(self,target=['rx'],tag='',channel=0):
         file_name = self.mCfg.dump_path+'regdump'+tag+'.txt'
         fh = open(file_name,'w')
-        print ("DumpRegFile ln%d - (%s)" % (channel,target))
-        if ((target == 'tx') or (target == 'all')):
+        if self.mCfg.b_dbg_print:
+            print ("DumpRegFile ln%d - (%s)" % (channel,target))
+        if 'tx' in target or 'all' in target:
             self.DumpRegs(fh,0x50000,0x50164,channel)
             self.DumpRegs(fh,0x50500,0x5051C,channel)
             self.DumpRegs(fh,0x50600,0x5066C,channel)
-            self.DumpRegs(fh,0x51000,0x51BFC,channel) #TXDSP_LUT
             self.DumpRegs(fh,0x54000,0x5400C,channel)
-        if ((target == 'rx') or (target == 'all')):
+        if 'tx_extra' in target or 'all' in target:
+            self.DumpRegs(fh,0x51000,0x51BFC,channel) #TXDSP_LUT
+        if 'rx' in target or 'all' in target:
             self.DumpRegs(fh,0x60000,0x601F8,channel)
             self.DumpRegs(fh,0x60500,0x605CC,channel)
             self.DumpRegs(fh,0x60700,0x60710,channel)
             self.DumpRegs(fh,0x60800,0x609C0,channel)
             self.DumpRegs(fh,0x61000,0x61024,channel)
             self.DumpRegs(fh,0x61FF8,0x6224C,channel)
-            self.DumpRegs(fh,0x63010,0x6320C,channel) #EOM_VCNT
             self.DumpRegs(fh,0x63410,0x6358C,channel) #EOM_ERROR/MMCDR/ADC_IOC/CAL/INIT_FORCE
             self.DumpRegs(fh,0x64000,0x640F0,channel) #FSM/CAL_FSM/MMCDR_SKEW_CODE/MMCDR_CONFIGs/etc
             self.DumpRegs(fh,0x64100,0x64208,channel) #ADC_CAL_xx
             self.DumpRegs(fh,0x6420C,0x6421C,channel) #BUBBLE,VITERBI_CTRL
-        if ((target == 'cmn') or (target == 'all')):
+        if 'rx_extra' in target or 'all' in target:
+            self.DumpRegs(fh, 0x63010, 0x6320C, channel)  # EOM_VCNT
+        if 'cmn' in target or 'all' in target:
             self.DumpRegs(fh,0x0000,0x0148,0)
             self.DumpRegs(fh,0x0FFC,0x0FFC,0)
         fh.close()
@@ -376,6 +381,12 @@ class EVB_PMAD(object):
         result['cboost'] = self.cboost[channel]
         # BER/EYE
         result['ber'] = self.GetBer(measure_bits_db,channel)
+        # log at exceptional case
+        if result['ber'] >= self.mCfg.log_ber_thld:
+            date = datetime.datetime.now()
+            date_str = '_%s%s%s_%s%s' % (str(date.year),str(date.month),str(date.day),str(date.hour),str(date.minute))
+            self.DumpRegFile(target=['tx','rx','cmn'],tag=date_str,channel=channel)
+
         if(extra_ber_en==1 and result['ber']<1e-6):
             result['voltage_margin'],result['extra_ber']=self.get_extra_ber(pam4=self.is_pam4_rate(self.mCfg.data_rate),ln_i=channel)
         else:
@@ -1273,7 +1284,6 @@ class EVB_PMAD(object):
         # self.mApb.write(0x000601dc, 0x00000000, channel)
         self.AfeAdaptation(ln_i=channel)
     def AfeAdaptation(self, ln_i=0):
-        #self.DumpRegFile()
         if self.mCfg.b_dbg_print:
             self.PrintTuneRegs(ln_i)
         maxLimit = 61
@@ -1676,7 +1686,7 @@ class EVB_PMAD(object):
             else:
                 self.SetTxOff(channel=i)
                 self.SetRxOff(channel=i)
-        #self.DumpRegFile(tag='init')
+
     def SetWA0_Post(self,channel):
         self.mApb.write(0x50000,0x8,channel)
         self.mApb.write(0x50000,0x0,channel)
