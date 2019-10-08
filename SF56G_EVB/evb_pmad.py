@@ -398,7 +398,7 @@ class EVB_PMAD(object):
             result['ui_margin'],result['extra_ber_horizontal'] = self.get_extra_ber_horizontal(channel=channel)
         else:
             result['voltage_margin'],result['extra_ber_vertical']=[[0]], [[0.5,0.5,0.5]]
-            result['ui_margin'],result['extra_ber_horizontal'] =[0]*9, [0.5]*9
+            result['ui_margin'],result['extra_ber_horizontal'] =[[0]], [[0.5]*3]*3
         # EYE
         eye = self.meas_eye(HeightOnly,channel)
         result['eye01_height'] = eye[0]
@@ -531,12 +531,13 @@ class EVB_PMAD(object):
             return count_set[accum_set] if accum_set < len(count_set) else 32
 
         # 0. bring config values
-        accum_set = self.mCfg.extra_h_accum_set
+        accum_set   = self.mCfg.extra_ber_h_accum_set
+        pam4        = self.is_pam4_rate(self.mCfg.data_rate)
+        margin_list = self.mCfg.extra_ber_h_pam4_margin_list if pam4 else self.mCfg.extra_ber_h_nrz_margin_list
 
         # 1. find vertical center (can be skipped if GetEye is done in advance)
         c0h = min(63, int((self.mApb.read(0x6223C, channel) + 3) / 2.0))
         c0l = min(63, int((self.mApb.read(0x62240, channel) + 1) / 2.0))
-        pam4 = (c0l != 0)
         height_data = self.GetEye_HeightData(target=range(128), channel=channel)
         h12, c12 = self.GetEye_HnC(height_data, 64 - c0h, 64 + c0h)
 
@@ -547,10 +548,10 @@ class EVB_PMAD(object):
         self.mApb.write(0x61020, uc12, channel)
         self.mApb.write(0x61024, uc12, channel)
 
-        self.SetEomPosition(-self.mCfg.extra_h_phase, channel)
+        self.SetEomPosition(-self.mCfg.extra_ber_h_phase, channel)
         self.mApb.write(0x61018, 0x017|accum_set<<12, channel)
         err_list = {'01':[],'12':[],'23':[]} if pam4 else {'12':[]}
-        for phase_sign in range(-self.mCfg.extra_h_phase, self.mCfg.extra_h_phase, 1):
+        for phase_sign in range(-self.mCfg.extra_ber_h_phase, self.mCfg.extra_ber_h_phase, 1):
             phase = phase_sign if phase_sign >= 0 else (phase_sign+512)
             if phase%10 == 0 and self.mCfg.b_dbg_print:
                 print("phase=(s:%d,u:%d)" % (phase_sign,phase))
@@ -567,7 +568,7 @@ class EVB_PMAD(object):
                 err_list['23'].append(self.mApb.read(0x63420, channel) | (self.mApb.read(0x63424, channel) << 16))
             err_list['12'].append(self.mApb.read(0x63418, channel) | (self.mApb.read(0x6341C, channel) << 16))
 
-        if self.mCfg.extra_h_dump:
+        if self.mCfg.extra_ber_h_dump:
             for key,data_l in err_list.items():
                 fh = open(self.mCfg.dump_abs_path+'err'+key+'_list.txt','w')
                 for data in data_l:
@@ -577,20 +578,25 @@ class EVB_PMAD(object):
         extra_result = {}
         count_num = get_count_num(accum_set)
         for key,data_l in err_list.items():
-            extra_result[key] = evb_extra.bathtub_extrapolation_horizontal(data_l,count_num)
+            extra_result[key] = evb_extra.bathtub_extrapolation_horizontal(data_l,count_num,margin_list)
 
         # 4. plot
-        if self.mCfg.extra_h_plot:
+        if self.mCfg.extra_ber_h_plot:
             plt_name = (self.mCfg.dump_abs_path+'hbath'+self.mCfg.GetCondition()+'.png')
-            PlotBerHorizontal_Bathtub(extra_result,plot_raw_en=self.mCfg.extra_h_plot_raw,plt_name=plt_name)
+            PlotBerHorizontal_Bathtub(extra_result,plot_raw_en=self.mCfg.extra_ber_h_plot_raw,plt_name=plt_name)
 
         # 5. result
         ber_result = []
-        ber_result += ([0,0,0] if not pam4 else [extra_result['01']['left_y'],extra_result['01']['rght_y'],extra_result['01']['crss_y']])
-        ber_result += ([extra_result['12']['left_y'],extra_result['12']['rght_y'],extra_result['12']['crss_y']])
-        ber_result += ([0,0,0] if not pam4 else [extra_result['23']['left_y'],extra_result['23']['rght_y'],extra_result['23']['crss_y']])
-        ui_result  = [0]*9
-        return ui_result, ber_result
+        ber_result.append([0]*3 if not pam4 else extra_result['01']['ber_center'])
+        ber_result.append(extra_result['12']['ber_center'])
+        ber_result.append([0]*3 if not pam4 else extra_result['23']['ber_center'])
+
+        margin_len     = len(margin_list)
+        margin_result  = []
+        margin_result.append([0]*margin_len if not pam4 else extra_result['01']['margin'])
+        margin_result.append(extra_result['12']['margin'])
+        margin_result.append([0]*margin_len if not pam4 else extra_result['23']['margin'])
+        return margin_result, ber_result
 
 #}}}
 #----------------------------------------------------------------------------------------------------

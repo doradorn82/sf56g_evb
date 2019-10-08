@@ -245,7 +245,7 @@ def bathtub_extrapolation_vertical(filename,filename2,countNum=29,countNum2=19,p
 
 def curve_func_order1(x, a, b):
     return a * x + b
-def bathtub_extrapolation_horizontal(err_list, countNum=22):
+def bathtub_extrapolation_horizontal(err_list, countNum=22, margin_list=[-12,-15,-17]):
     extra_h_curve_num = 4
     pi_period = 128
     pi_half_period = int(pi_period/2)
@@ -302,7 +302,10 @@ def bathtub_extrapolation_horizontal(err_list, countNum=22):
     #print('rght_fit_param=>',rght_fit_param)
 
     # TODO: find margin
-    margin_list = [-12,-15,-17]
+    left_margin = np.interp(margin_list,np.log10(left_fit),pi_code)
+    rght_margin = np.interp(margin_list,np.log10(rght_fit),pi_code)
+    margin   = (rght_margin-left_margin)/128
+    margin   = [m if m > 0 else 0 for m in margin]
 
     # find cross points
     left_y = np.interp(0,pi_code,left_fit)
@@ -313,10 +316,9 @@ def bathtub_extrapolation_horizontal(err_list, countNum=22):
     result = {}
     result['left_ber'] = left_ber
     result['left_fit'] = left_fit
-    result['left_y']   = left_y
     result['rght_ber'] = rght_ber
     result['rght_fit'] = rght_fit
-    result['rght_y']   = rght_y
     result['crss_x']   = crss_x
-    result['crss_y']   = crss_y
+    result['ber_center'] = [left_y,rght_y,crss_y]
+    result['margin']   = margin
     return result
