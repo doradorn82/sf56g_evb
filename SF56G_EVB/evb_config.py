@@ -9,7 +9,7 @@ class EVB_CONFIG(object):
         self.apb_delay = 0
         self.b_dbg_apb_read = False
         self.b_dbg_apb_write = False
-        self.b_dbg_print = True
+        self.b_dbg_print = False
         self.b_WA0 = True
         self.b_prot_en = False
         self.media_mode = 'RLB' #:= 'SLB'(internal channel),'ELB'(external channel),'RLB'(external long channel)

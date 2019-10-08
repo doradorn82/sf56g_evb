@@ -50,7 +50,11 @@ class SF56G (object):
 #----------------------------------------------------------------------------------------------------
  def Delay(self,ms):
   Delay(ms)
- def init_evb(self):
+ def init_evb(self,channels):
+  lane_en = 0
+  for c in channels:
+   lane_en += 1<<c
+  self.mCfg.lane_en = lane_en
   self.mApb.init_evb()
   self.mPmad.Init()
   rdata0 = self.mApb.read(0)
@@ -101,8 +105,8 @@ class SF56G (object):
   return self.mPmad.meas_eye(height_only,channel)
  def meas_ber (self,measure_bits_db=34 ,channel=0):
   return self.mPmad.GetBer(measure_bits_db,channel)
- def get_status (self,measure_bits_db=34,HeightOnly=0,extra_ber_en=0,lin_fit_en=1,lin_fit_point=41,lin_fit_main=10,imp_eq_out=0,channel=0):
-  return self.mPmad.GetStatus(measure_bits_db=measure_bits_db,extra_ber_en=extra_ber_en,HeightOnly=HeightOnly,lin_fit_en=lin_fit_en,lin_fit_point=lin_fit_point,lin_fit_main=lin_fit_main,imp_eq_out=imp_eq_out,channel=channel)
+ def get_status (self,measure_bits_db=34,HeightOnly=0,extra_ber_en=0,lin_fit_en=1,lin_fit_point=41,lin_fit_main=10,imp_eq_out=0,tag='',channel=0):
+  return self.mPmad.GetStatus(measure_bits_db=measure_bits_db,extra_ber_en=extra_ber_en,HeightOnly=HeightOnly,lin_fit_en=lin_fit_en,lin_fit_point=lin_fit_point,lin_fit_main=lin_fit_main,imp_eq_out=imp_eq_out,tag=tag,channel=channel)
  def set_tx_pre_post(self, tx_pre2 = 0, tx_pre1 = 0, tx_post1 = 0, attenuation = 1.0, channel = 0):
   self.mPmad.SetTxEq(tx_pre2,tx_pre1,tx_post1,attenuation,channel)
  def set_rx_ffe (self,tap=1,coef=0,channel=0):
