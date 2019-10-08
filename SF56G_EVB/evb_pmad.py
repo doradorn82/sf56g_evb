@@ -362,6 +362,11 @@ class EVB_PMAD(object):
             return max(thld_data)
         else:
             return 0
+    def GetLog(self,tag='',channel=0):
+        date = datetime.datetime.now()
+        date_str = '_%s%s%s_%s%s_%s' % (str(date.year),str(date.month),str(date.day),str(date.hour),str(date.minute),tag)
+        self.DumpRegFile(target=['tx','rx','cmn'],tag=date_str,channel=channel)
+
     def GetStatus(self,measure_bits_db=30,extra_ber_en=1,HeightOnly=1,lin_fit_en=1,lin_fit_point=41,lin_fit_main=10,imp_eq_out=0,tag='',channel=0):
         result = {}
         # TxEQ
@@ -381,21 +386,22 @@ class EVB_PMAD(object):
         result['rx_vga2'] = 15-(self.mApb.read(0x60028,channel)&0xf)
         result['rx_adcgain'] = 7-((self.mApb.read(0x60034,channel)>>6) & 0x7)
         result['cboost'] = self.cboost[channel]
-        # BER/EYE
+        # BER_SIMPLE
         result['ber'] = self.GetBer(measure_bits_db,channel)
-        # log at exceptional case
+        # LOG 
         if result['ber'] >= self.mCfg.log_ber_thld:
             print("logging by ber=%4.2e"%result['ber'])
-            date = datetime.datetime.now()
-            date_str = '_%s%s%s_%s%s_%s' % (str(date.year),str(date.month),str(date.day),str(date.hour),str(date.minute),tag)
-            self.DumpRegFile(target=['tx','rx','cmn'],tag=date_str,channel=channel)
+            self.GetLog(tag,channel)
 
+        # BER_EXTRA
         if(extra_ber_en==1 and result['ber']<1e-6):
             result['voltage_margin'],result['extra_ber']=self.get_extra_ber(pam4=self.is_pam4_rate(self.mCfg.data_rate),ln_i=channel)
+            result['extra_ber_horizontal'] = self.GetBerHoriontal(channel=channel)
         else:
             result['voltage_margin'],result['extra_ber']=[[0]],[[0.5,0.5,0.5]]
+            result['extra_ber_horizontal'] = [0.5]*9
+        # EYE
         eye = self.meas_eye(HeightOnly,channel)
-        #eye = (0,0,0,0,0,0)
         result['eye01_height'] = eye[0]
         result['eye01_width']  = eye[1]
         result['eye12_height'] = eye[2]
@@ -405,6 +411,8 @@ class EVB_PMAD(object):
         # linear fit
         if lin_fit_en==1:
             result['lin_fit_x'],result['lin_fit_y'] = self.lin_fit_pulse(num_point=lin_fit_point,main=lin_fit_main,eq_out=imp_eq_out,channel=channel)
+        else:
+            result['lin_fit_x'],result['lin_fit_y'] = list(range(-lin_fit_main,lin_fit_point-lin_fit_main)), [0]*lin_fit_point
 
         return result
     def get_extra_ber(self, pam4, ln_i):
@@ -576,9 +584,9 @@ class EVB_PMAD(object):
 
         # 5. 3 points
         result = []
-        result.append([0,0,0] if not pam4 else [extra_result['01']['left_y'],extra_result['01']['rght_y'],extra_result['01']['crss_y']])
-        result.append([extra_result['12']['left_y'],extra_result['12']['rght_y'],extra_result['12']['crss_y']])
-        result.append([0,0,0] if not pam4 else [extra_result['23']['left_y'],extra_result['23']['rght_y'],extra_result['23']['crss_y']])
+        result += ([0,0,0] if not pam4 else [extra_result['01']['left_y'],extra_result['01']['rght_y'],extra_result['01']['crss_y']])
+        result += ([extra_result['12']['left_y'],extra_result['12']['rght_y'],extra_result['12']['crss_y']])
+        result += ([0,0,0] if not pam4 else [extra_result['23']['left_y'],extra_result['23']['rght_y'],extra_result['23']['crss_y']])
         return result
 
     def GetBerHorizontal_Extrapolation(self, err_list, countNum=22):

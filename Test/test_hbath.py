@@ -251,8 +251,8 @@ if __name__ == '__main__':
         if ber < 1e-4:
             # dut
             t_beg = time.time()
-            o = chip.GetBerHoriontal(accum_set=12,channel=0)
+            status = chip.mPmad.GetStatus(HeightOnly=1,lin_fit_en=0,tag='test run',channel=0)
             t_end = time.time()
             print("processing time = %ds" % (t_end-t_beg))
-            print(o)
+            print(status)
 
