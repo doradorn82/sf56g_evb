@@ -14,8 +14,12 @@ from LibSF56G import SF56G
 def gaussian(x, amp, cen, wid):
     return amp * np.exp(-(x-cen)**2 / wid)
 
-def poly_1(x, a, b):
-    return a* x + b
+def curve_func_log10(x, a, b, c):
+    return a * (10**(b*x + c))
+
+def curve_func_order1(x, a, b):
+    return a * x + b
+
 
 class Develop(object):
     def __init__(self,chip=None):
@@ -24,158 +28,174 @@ class Develop(object):
             self.GetEye_HeightData = chip.mPmad.GetEye_HeightData
             self.GetEye_HnC = chip.mPmad.GetEye_HnC
             self.SetEomPosition = chip.mPmad.SetEomPosition
-            self.dump_path = chip.mCfg.dump_path
         else:
-            self.dump_path = '../dump'
-        self.phase_max = 64
-        self.phase_min =-64
+            self.dump_abs_path = '../dump'
+        self.phase_max = 90
+        self.phase_min =-90
         self.phase_step = 1
+        self.pi_half_period = 64
+        self.num_curve_x = 3
+
         self.fonts  = self.plot_favorite() # fonts:=textFont,labelFont,titleFont
-        self.b_plot_en = True
 
-    def GetHorizonBathtub(self, channel=0):
-        # 0. vars
-        err01_l = []
-        err12_l = []
-        err23_l = []
+    def GetBathHorizon(self, accum_set = 12, plot_en=False, dump_en=False, channel=0):
+        def get_count_num(accum_set=7):
+            count_set = [8,10,12,14, 16,18,20,22, 24,26,27,28, 29,30,31,32]
+            return count_set[accum_set] if accum_set < len(count_set) else 32
 
-        # 1. find vertical center (using histo_eom)
-        # get reference
-        c0h = min(63, int((self.mApb.read(0x6223C, channel) + 3) / 2.0))  # 25
-        c0l = min(63, int((self.mApb.read(0x62240, channel) + 1) / 2.0))  # 9
+        # 1. find vertical center (can be skipped if GetEye is done in advance)
+        c0h = min(63, int((self.mApb.read(0x6223C, channel) + 3) / 2.0))
+        c0l = min(63, int((self.mApb.read(0x62240, channel) + 1) / 2.0))
         pam4 = (c0l != 0)
-        # get histo data
         height_data = self.GetEye_HeightData(target=range(128), channel=channel)
-        print (height_data[:32])
-        print (height_data[32:64])
-        print (height_data[64:96])
-        print (height_data[96:])
-        # find Height and Center
-        if pam4:
-            h01, c01 = self.GetEye_HnC(height_data, 64 - c0h, 64 - c0l)
-            h12, c12 = self.GetEye_HnC(height_data, 64 - c0l, 64 + c0l)
-            h23, c23 = self.GetEye_HnC(height_data, 64 + c0l, 64 + c0h)
-        else:
-            h01, c01 = 0, 0
-            h12, c12 = self.GetEye_HnC(height_data, 64 - c0h, 64 + c0h)
-            h23, c23 = 0, 0
-        # 2. sweep phase and get err_eom.cnt with get err_eom.alpha=vertical_center
-        print("c01=0x%x" % c01)
-        self.mApb.write(0x6101C, c01, channel)
-        self.mApb.write(0x61020, c12, channel)
-        self.mApb.write(0x61024, c23, channel)
+        h12, c12 = self.GetEye_HnC(height_data, 64 - c0h, 64 + c0h)
 
+        # 2. sweep phase and get err_eom.cnt
+        err_list = {'01':[],'12':[],'23':[]} if pam4 else {'12':[]}
+        uc12 = (c12-64)*2 if (c12-64)*2 >= 0 else (c12-64)*2+256
+        # set alpha (internnaly, vref is also used, so only offset shall be set)
+        self.mApb.write(0x6101C, uc12, channel)
+        self.mApb.write(0x61020, uc12, channel)
+        self.mApb.write(0x61024, uc12, channel)
         self.SetEomPosition(self.phase_min, channel)
-        self.mApb.write(0x61018, 0x7017, channel)  # TODO: accumulate time
+        self.mApb.write(0x61018, 0x017|accum_set<<12, channel)
         for phase_sign in range(self.phase_min, self.phase_max, self.phase_step):
-            print("phase=%d" % phase_sign)
             phase = phase_sign if phase_sign >= 0 else (phase_sign+512)
+            if phase%10 == 0:
+                print("phase=(s:%d,u:%d)" % (phase_sign,phase))
             # move to target phase
             self.mApb.write(0x61008, phase, channel)
-            # eom en
-            self.mApb.write(0x60100, 0 << 7, channel, 1 << 7)
-            self.mApb.write(0x60100, 1 << 7, channel, 1 << 7)
+            # eom en, eom_path
+            self.mApb.write(0x60100, 0<<6| 0<<7, channel, 1<<6|1<<7)
+            self.mApb.write(0x60100, 1<<7, channel, 1<<7)
             # wait err_eom done
             self.mApb.poll(0x63428, 1 << 1, channel, 1 << 1)
             # get the results
-            err01_l.append(self.mApb.read(0x63410, channel) | (self.mApb.read(0x63414, channel) << 16))
-            err12_l.append(self.mApb.read(0x63418, channel) | (self.mApb.read(0x6341C, channel) << 16))
-            err23_l.append(self.mApb.read(0x63420, channel) | (self.mApb.read(0x63424, channel) << 16))
+            if pam4:
+                err_list['01'].append(self.mApb.read(0x63410, channel) | (self.mApb.read(0x63414, channel) << 16))
+                err_list['23'].append(self.mApb.read(0x63420, channel) | (self.mApb.read(0x63424, channel) << 16))
+            err_list['12'].append(self.mApb.read(0x63418, channel) | (self.mApb.read(0x6341C, channel) << 16))
 
-        print("err01 list=>", err01_l)
-        print("err12 list=>", err12_l)
-        print("err23 list=>", err23_l)
-        if True:
-            f01 = open(self.dump_path+'/err01_list.txt','w')
-            f12 = open(self.dump_path+'/err12_list.txt','w')
-            f23 = open(self.dump_path+'/err23_list.txt','w')
-            for e in err01_l:
-                f01.write(str(e)+'\n')
-            for e in err12_l:
-                f12.write(str(e)+'\n')
-            for e in err23_l:
-                f23.write(str(e)+'\n')
-            f01.close()
-            f12.close()
-            f23.close()
-        # 3. draw extra_polation and get 3 points (width at 1e-12, [fitCrossLowY,fitCrossHighY,fitCrossY])
-        extra12 = self.GetExtrapolation(err12_l,22)
+        if dump_en:
+            for key,data_l in err_list.items():
+                fh = open(self.dump_abs_path+'err'+key+'_list.txt','w')
+                for data in data_l:
+                    fh.write(str(data)+'\n')
+                fh.close()
+        # 3. Extrapolation
+        extra_result = {}
+        count_num = get_count_num(accum_set)
+        for key,data_l in err_list.items():
+            extra_result[key] = self.GetExtrapolation(data_l,count_num)
 
-        return extra12
+        # 4. plot
+        if plot_en:
+            self.PlotBathHorizon(extra_result)
 
-    def GetExtrapolation(self,err_list, countNum=22):
-        pi_code   = np.array(range(self.phase_min,self.phase_max,self.phase_step)) # x-axis
-        half_len  = int(len(err_list)/2)
-        half_zero = np.zeros(half_len)
-        #left_param = [-10,30] ;
-        #rght_param = [ 10,-30] ;
-        left_param = [1,-50,40]
-        rght_param = [1,50,40]
+        # 5. 3 points
+        result = []
+        result.append([0,0,0] if not pam4 else [extra_result['01']['left_y'],extra_result['01']['rght_y'],extra_result['01']['crss_y']])
+        result.append([extra_result['12']['left_y'],extra_result['12']['rght_y'],extra_result['12']['crss_y']])
+        result.append([0,0,0] if not pam4 else [extra_result['23']['left_y'],extra_result['23']['rght_y'],extra_result['23']['crss_y']])
+        return result
+
+    def GetExtrapolation(self, err_list, countNum=22):
+        def get_fit_err_list(err_list,pi_half_period=64):
+            center_left  = np.array(err_list).argmin()
+            center_rght  = len(err_list) - np.array(err_list[-1::-1]).argmin()
+            center       = max(pi_half_period, int((center_left + center_rght) / 2))
+            fit_err_list = err_list[center - pi_half_period:center + pi_half_period]
+            return fit_err_list
+        def replace_zero(list,replace=1e-50):
+            for idx,data in enumerate(list):
+                if data == 0:
+                    list[idx] = replace
+            return list
+        # common
+        pi_code    = np.array(range(-self.pi_half_period, self.pi_half_period, 1))
+        left_param = [-1, -10]
+        rght_param = [1, -10]
+        curve_func = curve_func_order1
+
+        # align center
+        fit_err_list = get_fit_err_list(err_list,self.pi_half_period)
 
         # distribute left and right ber
-        ber_list  = np.array(err_list) / 2**countNum
-        left_ber  = np.hstack((ber_list[:half_len],half_zero))
-        rght_ber  = np.hstack((half_zero,ber_list[half_len:]))
+        ber_list  = np.array(fit_err_list) / 2**countNum
+        half_zero = np.zeros(self.pi_half_period)
+        left_ber  = np.hstack((ber_list[:self.pi_half_period],half_zero))
+        rght_ber  = np.hstack((half_zero,ber_list[self.pi_half_period:]))
 
-        # TODO: curve fit
-        left_curve_x1 = 0
-        left_curve_x2 = 0
-        state = 'FIND_X1'
-        for i,ber in enumerate(left_ber):
-            if state == 'FIND_X1':
-                if ber < 1e-5:
-                    left_curve_x1 = pi_code[i]
-                    state = 'FIND_X2'
-            elif state == 'FIND_X2':
-                if ber < 1e-15:
-                    left_curve_x2 = pi_code[i]
-                    state = 'DONE'
+        # curve fit
+        left_curve_x_end = max(self.num_curve_x,left_ber.argmin())
+        left_curve_x_beg = left_curve_x_end-self.num_curve_x
+        left_curve_x     = pi_code[left_curve_x_beg:left_curve_x_end]
+        left_curve_y     = np.log10(replace_zero(left_ber[left_curve_x_beg:left_curve_x_end]))
+        rght_curve_x_beg = len(rght_ber)-max(self.num_curve_x,np.array(rght_ber[-1::-1]).argmin())
+        rght_curve_x_end = rght_curve_x_beg+self.num_curve_x
+        rght_curve_x     = pi_code[rght_curve_x_beg:rght_curve_x_end]
+        rght_curve_y     = np.log10(replace_zero(rght_ber[rght_curve_x_beg:rght_curve_x_end]))
 
-        print(left_ber)
-        print(left_curve_x1,left_curve_x2)
-        curve_func = gaussian
-        best_vals, covar = optimize.curve_fit(curve_func, pi_code, left_ber, left_param)
-        left_fit  = curve_func(pi_code, best_vals[0],best_vals[1],best_vals[2])
-        left_fit  /= sum(left_fit)
+        left_fit_param, covar = optimize.curve_fit(curve_func, left_curve_x, left_curve_y, left_param)
+        rght_fit_param, covar = optimize.curve_fit(curve_func, rght_curve_x, rght_curve_y, rght_param)
+        left_fit = np.hstack((left_ber[:left_curve_x_beg], (10**curve_func(pi_code[left_curve_x_beg:], left_fit_param[0],left_fit_param[1]))))
+        rght_fit = np.hstack( (10**curve_func(pi_code[:rght_curve_x_end], rght_fit_param[0],rght_fit_param[1]), rght_ber[rght_curve_x_end:]) )
 
-        best_vals, covar = optimize.curve_fit(curve_func, pi_code, rght_ber, rght_param)
-        rhgt_fit = curve_func(pi_code, best_vals[0],best_vals[1],best_vals[2])
-        rhgt_fit /= sum(rhgt_fit)
+        #print('left_ber=>',left_ber)
+        #print('left curve =>', left_curve_x, left_curve_y)
+        #print('left_fit=>',left_fit)
+        #print('left_fit_param=>',left_fit_param)
+        #print('rght_ber=>',rght_ber)
+        #print('rght curve =>', rght_curve_x, rght_curve_y)
+        #print('rght_fit=>',rght_fit)
+        #print('rght_fit_param=>',rght_fit_param)
 
         # TODO: find margin
         margin_list = [-12,-15,-17]
 
-        # TODO: find cross points
-        left_y  = np.interp(0,pi_code,left_fit)
-        rght_y  = np.interp(0,pi_code,rhgt_fit)
-        crss_x  = np.interp(0,(rhgt_fit-left_fit),pi_code)
-        crss_y  = np.interp(crss_x, pi_code, left_fit)
+        # find cross points
+        left_y = np.interp(0,pi_code,left_fit)
+        rght_y = np.interp(0,pi_code,rght_fit)
+        crss_x = np.interp(0,(rght_fit-left_fit),pi_code)
+        crss_y = np.interp(crss_x, pi_code, left_fit)
+        # gather results
+        result = {}
+        result['left_ber'] = left_ber
+        result['left_fit'] = left_fit
+        result['left_y']   = left_y
+        result['rght_ber'] = rght_ber
+        result['rght_fit'] = rght_fit
+        result['rght_y']   = rght_y
+        result['crss_x']   = crss_x
+        result['crss_y']   = crss_y
+        return result
 
-        #----------------------------------------------------------------------------------------------------
-        # Plot
-        #----------------------------------------------------------------------------------------------------
-        if self.b_plot_en:
-            plt.figure(figsize=[7,6])
+    def PlotBathHorizon(self,data_pack):
+        pi_code = np.array(range(-self.pi_half_period, self.pi_half_period, 1))
+        plt.figure(figsize=[7,6])
+        idx = 0
+        for key,data in data_pack.items():
             # raw,fit
-            plt.semilogy(pi_code,left_ber,'bo')
-            plt.semilogy(pi_code,rght_ber,'bo')
-            plt.semilogy(pi_code,left_fit)
-            plt.semilogy(pi_code,rhgt_fit)
+            #plt.semilogy(pi_code,data['left_ber'],'bo')
+            #plt.semilogy(pi_code,data['rght_ber'],'bo')
+            plt.semilogy(pi_code,data['left_fit'])
+            plt.semilogy(pi_code,data['rght_fit'])
             # crss
-            plt.text(crss_x,1e-28,'BER@L = %.2g\nBER@H = %.2g\nBER@X = %.2g'%(left_y,rght_y,crss_y),color='k',fontsize=12)
-            # config
-            plt.grid()
-            plt.xlim([self.phase_min,self.phase_max])
-            plt.ylim([1e-30,1])
-            plt.yticks(10**(np.arange(0.0,-31.0,step=-2.0)))
-            plt.minorticks_on()
-            plt.tick_params(axis='x',which='both',direction='out',length=4,pad=8)
-            plt.xlabel('Phase',**self.fonts[1])
-            plt.ylabel('BER',**self.fonts[1],fontsize=18)
-            plt.savefig(self.dump_path+'/h_bath.png',dpi=200)
-            plt.close()
+            plt.text(0,10**-(20+4*idx),'<EYE%s>\nBER@L = %.2e\nBER@H = %.2e\nBER@X = %.2e'%(key,data['left_y'],data['rght_y'],data['crss_y']),color='k',fontsize=10)
+            idx+=1
+        # config
+        plt.grid()
+        plt.xlim([-64,64])
+        plt.ylim([1e-30,1])
+        plt.yticks(10**(np.arange(0.0,-31.0,step=-2.0)))
+        plt.minorticks_on()
+        plt.tick_params(axis='x',which='both',direction='out',length=4,pad=8)
+        plt.xlabel('Phase',**self.fonts[1])
+        plt.ylabel('BER',**self.fonts[1],fontsize=18)
+        plt_name = (self.mCfg.dump_abs_path+'hbat'+self.mCfg.GetCondition()+'.png') if hasattr(self,'mCfg') else '../dump/hbath.png'
+        plt.savefig(plt_name,dpi=200)
+        plt.close()
 
-        return [left_y,rght_y,crss_y]
 
     def plot_favorite(self):
         axisFont = {'family' : 'serif', 'weight' : 'bold','size'   : 12}
@@ -187,32 +207,38 @@ class Develop(object):
         return textFont,labelFont,titleFont
 
 if __name__ == '__main__':
-    test_num = 1
-
+    test_num = 2
     if test_num == 2:
-        inFileName=r'C:\Users\SAMSUNG\Desktop\CISCO visit\3. Programs\Python_env\GitHub\sf56g_evb\dump\histo_example3.txt'
-        inFile      = open(inFileName)
-        fileRead    = inFile.readlines()
-        inFile.close()
-        err_list = np.array(list([int(x.strip().split()[0]) for x in fileRead]))
-        t = Develop()
-        o = t.GetExtrapolation(err_list)
+        dut = Develop()
+        #inFileName=r'C:\Users\SAMSUNG\Desktop\CISCO visit\3. Programs\Python_env\GitHub\ber_eom(53g_prbs7)\err12_list.txt'
+        dir_name = r'C:\Users\SAMSUNG\Desktop\CISCO visit\3. Programs\Python_env\GitHub\ber_eom(53g_prbs7)/'
+        #dir_name = r'C:\Users\SAMSUNG\Desktop\CISCO visit\3. Programs\Python_env\GitHub\ber_eom(25g_prbs31)/'
+        file_names = ['err01_list.txt','err12_list.txt','err23_list.txt']
+        keys = ['01','12','23'] if ('53g' in dir_name) else ['12']
+        extra_result = {}
+        for key in keys:
+            fh      = open(dir_name+'err'+key+'_list.txt')
+            data_list = np.array(list([int(x.strip().split()[0]) for x in fh.readlines()]))
+            extra_result[key] = dut.GetExtrapolation(data_list)
+            fh.close()
+        dut.PlotBathHorizon(extra_result)
 
     if test_num == 1:
         chip = SF56G()
         chip.SetConfig('lane_en',1)
-        chip.SetConfig('b_dbg_print',True)
+        chip.SetConfig('b_dbg_print',False)
         chip.build()
-        print(chip.mCfg)
+        #print(chip.mCfg)
         if(chip.init_evb() < 0):
             print("exit by apb error")
             exit (-1)
-        chip.set_datarate(53.125)
-        chip.act_chan_TX('PRBS13',channel=0)
-        chip.act_chan_RX('PRBS13',channel=0)
-        chip.set_tx_pre_post(0,-0.15,0)
+        #chip.set_datarate(53.125)
+        chip.set_datarate(25.78125)
+        chip.act_chan_TX('PRBS31',channel=0)
+        chip.act_chan_RX('PRBS31',channel=0)
+        chip.set_tx_pre_post(tx_pre1=-0.15,attenuation=1)
         chip.tune_init()
-        chip.tune_rx()
+        #chip.tune_rx()
         chip.mPmad.PrintLaneState()
         chip.mPmad.PrintAllRxCoef()
         chip.GetHistogram()
@@ -223,7 +249,7 @@ if __name__ == '__main__':
             # dut
             t = Develop(chip)
             t_beg = time.time()
-            o = t.GetHorizonBathtub()
+            o = t.GetBathHorizon(12,True,True,0)
             t_end = time.time()
             print("processing time = %ds" % (t_end-t_beg))
 
