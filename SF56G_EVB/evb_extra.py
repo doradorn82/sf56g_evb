@@ -243,3 +243,80 @@ def bathtub_extrapolation_vertical(filename,filename2,countNum=29,countNum2=19,p
     plt.close()
     return marginList,berList
 
+def curve_func_order1(x, a, b):
+    return a * x + b
+def bathtub_extrapolation_horizontal(err_list, countNum=22):
+    extra_h_curve_num = 4
+    pi_period = 128
+    pi_half_period = int(pi_period/2)
+    def get_fit_err_list(err_list,pi_half_period=64):
+        center_left  = np.array(err_list).argmin()
+        center_rght  = len(err_list) - np.array(err_list[-1::-1]).argmin()
+        center       = max(pi_half_period, int((center_left + center_rght) / 2))
+        fit_err_list = err_list[center - pi_half_period:center + pi_half_period]
+        return fit_err_list
+    def replace_zero(list,replace=1e-50):
+        for idx,data in enumerate(list):
+            if data == 0:
+                list[idx] = replace
+        return list
+    # common
+    pi_code    = np.array(range(-pi_half_period, pi_half_period, 1))
+    left_param = [-1, -10]
+    rght_param = [1, -10]
+    curve_func = curve_func_order1
+
+    # align center
+    fit_err_list = get_fit_err_list(err_list,pi_half_period)
+
+    # distribute left and right ber
+    ber_list  = np.array(fit_err_list) / 2**countNum
+    half_zero = np.zeros(pi_half_period)
+    left_ber  = np.hstack((ber_list[:pi_half_period],half_zero))
+    rght_ber  = np.hstack((half_zero,ber_list[pi_half_period:]))
+
+    # curve fit
+    curve_num        = extra_h_curve_num
+    left_curve_x_end = max(curve_num,left_ber.argmin())-2
+    left_curve_x_beg = left_curve_x_end-curve_num-2
+    left_curve_x     = pi_code[left_curve_x_beg:left_curve_x_end-2]
+    left_curve_y     = np.log10(replace_zero(left_ber[left_curve_x_beg:left_curve_x_end-2]))
+    print(left_curve_x, left_curve_y)
+    rght_curve_x_beg = len(rght_ber)-max(curve_num,np.array(rght_ber[-1::-1]).argmin())+2
+    rght_curve_x_end = rght_curve_x_beg+curve_num+2
+    rght_curve_x     = pi_code[rght_curve_x_beg:rght_curve_x_end]
+    rght_curve_y     = np.log10(replace_zero(rght_ber[rght_curve_x_beg:rght_curve_x_end]))
+
+    left_fit_param, covar = optimize.curve_fit(curve_func, left_curve_x, left_curve_y, left_param)
+    rght_fit_param, covar = optimize.curve_fit(curve_func, rght_curve_x, rght_curve_y, rght_param)
+    left_fit = np.hstack((left_ber[:left_curve_x_beg], (10**curve_func(pi_code[left_curve_x_beg:], left_fit_param[0],left_fit_param[1]))))
+    rght_fit = np.hstack( (10**curve_func(pi_code[:rght_curve_x_end], rght_fit_param[0],rght_fit_param[1]), rght_ber[rght_curve_x_end:]) )
+
+    #print('left_ber=>',left_ber)
+    #print('left curve =>', left_curve_x, left_curve_y)
+    #print('left_fit=>',left_fit)
+    #print('left_fit_param=>',left_fit_param)
+    #print('rght_ber=>',rght_ber)
+    #print('rght curve =>', rght_curve_x, rght_curve_y)
+    #print('rght_fit=>',rght_fit)
+    #print('rght_fit_param=>',rght_fit_param)
+
+    # TODO: find margin
+    margin_list = [-12,-15,-17]
+
+    # find cross points
+    left_y = np.interp(0,pi_code,left_fit)
+    rght_y = np.interp(0,pi_code,rght_fit)
+    crss_x = np.interp(0,(rght_fit-left_fit),pi_code)
+    crss_y = np.interp(crss_x, pi_code, left_fit)
+    # gather results
+    result = {}
+    result['left_ber'] = left_ber
+    result['left_fit'] = left_fit
+    result['left_y']   = left_y
+    result['rght_ber'] = rght_ber
+    result['rght_fit'] = rght_fit
+    result['rght_y']   = rght_y
+    result['crss_x']   = crss_x
+    result['crss_y']   = crss_y
+    return result

@@ -252,7 +252,7 @@ if __name__ == '__main__':
             # dut
             t_beg = time.time()
             #status = chip.mPmad.GetStatus(HeightOnly=1,lin_fit_en=0,tag='test run',channel=0)
-            status = chip.mPmad.GetBerHorizontal(7,0)
+            status = chip.mPmad.get_extra_ber_horizontal(10,0)
             t_end = time.time()
             print("processing time = %ds" % (t_end-t_beg))
             print(status)

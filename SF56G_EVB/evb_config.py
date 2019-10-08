@@ -42,8 +42,6 @@ class EVB_CONFIG(object):
         self.extra_h_dump  = False
         self.extra_h_plot  = False
         self.extra_h_plot_raw = False
-        self.extra_h_curve_num = 4
-        self.pi_period = 128
         self.gen_params()
     def gen_params(self):
         self.dump_abs_path = get_evb_path()+'\\'+self.dump_path
