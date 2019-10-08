@@ -35,8 +35,12 @@ class EVB_APB(object):
         while cnt < timeout and not find:
             rdata = self.read(addr,channel)
             cnt += 1
+            Delay(self.mCfg.apb_poll_delay)
             if rdata & mask == data:
                 find = True
+        if (cnt >= timeout):
+            print("[apb] poll (0x%x-ln%d) timeout" % (addr,channel))
+
 
     def write(self,addr,data,channel=0,mask=None,track=False):
         waddr = addr+0x40000*channel
