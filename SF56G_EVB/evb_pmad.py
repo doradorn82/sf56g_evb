@@ -534,7 +534,8 @@ class EVB_PMAD(object):
         accum_set   = self.mCfg.extra_ber_h_accum_set
         pam4        = self.is_pam4_rate(self.mCfg.data_rate)
         margin_list = self.mCfg.extra_ber_h_pam4_margin_list if pam4 else self.mCfg.extra_ber_h_nrz_margin_list
-
+        if self.mCfg.b_dbg_print:
+            print('[extra_ber_h] accum_set=%d' % accum_set)
         # 1. find vertical center (can be skipped if GetEye is done in advance)
         c0h = min(63, int((self.mApb.read(0x6223C, channel) + 3) / 2.0))
         c0l = min(63, int((self.mApb.read(0x62240, channel) + 1) / 2.0))
@@ -543,6 +544,8 @@ class EVB_PMAD(object):
 
         # 2. sweep phase and get err_eom.cnt
         uc12 = (c12-64)*2 if (c12-64)*2 >= 0 else (c12-64)*2+256
+        if self.mCfg.b_dbg_print:
+            print("[extra_ber_h] uc12 = %d" % uc12)
         # set alpha (internnaly, vref is also used, so only offset shall be set)
         self.mApb.write(0x6101C, uc12, channel)
         self.mApb.write(0x61020, uc12, channel)
@@ -554,7 +557,7 @@ class EVB_PMAD(object):
         for phase_sign in range(-self.mCfg.extra_ber_h_phase, self.mCfg.extra_ber_h_phase, 1):
             phase = phase_sign if phase_sign >= 0 else (phase_sign+512)
             if phase%10 == 0 and self.mCfg.b_dbg_print:
-                print("phase=(s:%d,u:%d)" % (phase_sign,phase))
+                print("[extra_ber_h] phase=(s:%d,u:%d)" % (phase_sign,phase))
             # move to target phase
             self.mApb.write(0x61008, phase, channel)
             # eom en, eom_path
@@ -570,7 +573,7 @@ class EVB_PMAD(object):
 
         if self.mCfg.extra_ber_h_dump:
             for key,data_l in err_list.items():
-                fh = open(self.mCfg.dump_abs_path+'err'+key+'_list.txt','w')
+                fh = open(self.mCfg.dump_abs_path+'err'+key+'_list'+self.mCfg.GetCondition()+'.txt','w')
                 for data in data_l:
                     fh.write(str(data)+'\n')
                 fh.close()

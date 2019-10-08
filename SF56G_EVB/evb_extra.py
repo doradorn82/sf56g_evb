@@ -281,7 +281,7 @@ def bathtub_extrapolation_horizontal(err_list, countNum=22, margin_list=[-12,-15
     left_curve_x_beg = left_curve_x_end-curve_num-2
     left_curve_x     = pi_code[left_curve_x_beg:left_curve_x_end-2]
     left_curve_y     = np.log10(replace_zero(left_ber[left_curve_x_beg:left_curve_x_end-2]))
-    print(left_curve_x, left_curve_y)
+
     rght_curve_x_beg = len(rght_ber)-max(curve_num,np.array(rght_ber[-1::-1]).argmin())+2
     rght_curve_x_end = rght_curve_x_beg+curve_num+2
     rght_curve_x     = pi_code[rght_curve_x_beg:rght_curve_x_end]
@@ -301,8 +301,8 @@ def bathtub_extrapolation_horizontal(err_list, countNum=22, margin_list=[-12,-15
     #print('rght_fit=>',rght_fit)
     #print('rght_fit_param=>',rght_fit_param)
 
-    # TODO: find margin
-    left_margin = np.interp(margin_list,np.log10(left_fit),pi_code)
+    # find margin
+    left_margin = np.interp(margin_list,np.log10(left_fit)[::-1],pi_code[::-1])
     rght_margin = np.interp(margin_list,np.log10(rght_fit),pi_code)
     margin   = (rght_margin-left_margin)/128
     margin   = [m if m > 0 else 0 for m in margin]

@@ -476,17 +476,19 @@ def PlotBerHorizontal_Bathtub(data_pack,plot_raw_en=False,pi_period=128,plt_name
     fonts = plot_favorite()
     half_period = int(pi_period/2)
     pi_code = np.array(range(-half_period, half_period, 1))
-    plt.figure(figsize=[6,5])
+    plt.figure(figsize=[7,5])
     idx = 0
     for key,data in data_pack.items():
         # raw,fit
+        color = {'01':'g','12':'b','23':'r'}[key]
+        text_x = {'01':-0.45,'12':-0.15,'23':0.15}[key]
         if plot_raw_en:
-            plt.semilogy(pi_code/128,data['left_ber'],'bo')
-            plt.semilogy(pi_code/128,data['rght_ber'],'bo')
-        plt.semilogy(pi_code/128,data['left_fit'],'b',linewidth=2)
-        plt.semilogy(pi_code/128,data['rght_fit'],'b',linewidth=2)
+            plt.semilogy(pi_code/128,data['left_ber'],color+'o')
+            plt.semilogy(pi_code/128,data['rght_ber'],color+'o')
+        plt.semilogy(pi_code/128,data['left_fit'],color,linewidth=2)
+        plt.semilogy(pi_code/128,data['rght_fit'],color,linewidth=2)
         # crss
-        plt.text(0,10**-(20+4*idx),'<EYE%s>\nBER@L = %.2e\nBER@H = %.2e\nBER@X = %.2e'%(key,data['left_y'],data['rght_y'],data['crss_y']),color='k',fontsize=10)
+        plt.text(text_x,10**-(20+4*1),'<EYE%s>\nBER@L = %.2e\nBER@H = %.2e\nBER@X = %.2e'%(key,data['ber_center'][0],data['ber_center'][1],data['ber_center'][2]),color='k',fontsize=9)
         idx+=1
     # config
     plt.grid()

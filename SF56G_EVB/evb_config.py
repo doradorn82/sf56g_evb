@@ -27,7 +27,6 @@ class EVB_CONFIG(object):
         #self.b_init_boost_current = True
         self.b_WA0 = True
         self.b_use_old_tune = False
-        self.ber_fail_value = 0.5
         self.ber_init_cnt = 0
         self.dump_path = '../dump/'
         self.histo_meastime = 5
