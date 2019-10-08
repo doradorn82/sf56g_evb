@@ -542,12 +542,12 @@ class EVB_PMAD(object):
         # 2. sweep phase and get err_eom.cnt
         uc12 = (c12-64)*2 if (c12-64)*2 >= 0 else (c12-64)*2+256
         # set alpha (internnaly, vref is also used, so only offset shall be set)
-        self.mApb.write(0x61018, 0x017|accum_set<<12, channel)
         self.mApb.write(0x6101C, uc12, channel)
         self.mApb.write(0x61020, uc12, channel)
         self.mApb.write(0x61024, uc12, channel)
 
         self.SetEomPosition(-self.mCfg.extra_h_phase, channel)
+        self.mApb.write(0x61018, 0x017|accum_set<<12, channel)
         err_list = {'01':[],'12':[],'23':[]} if pam4 else {'12':[]}
         for phase_sign in range(-self.mCfg.extra_h_phase, self.mCfg.extra_h_phase, 1):
             phase = phase_sign if phase_sign >= 0 else (phase_sign+512)
@@ -638,9 +638,9 @@ class EVB_PMAD(object):
         #print('left curve =>', left_curve_x, left_curve_y)
         #print('left_fit=>',left_fit)
         #print('left_fit_param=>',left_fit_param)
-        #print('rght_ber=>',rght_ber)
-        #print('rght curve =>', rght_curve_x, rght_curve_y)
-        #print('rght_fit=>',rght_fit)
+        print('rght_ber=>',rght_ber)
+        print('rght curve =>', rght_curve_x, rght_curve_y)
+        print('rght_fit=>',rght_fit)
         #print('rght_fit_param=>',rght_fit_param)
 
         # TODO: find margin
