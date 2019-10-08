@@ -1,12 +1,14 @@
 from evb_types import *
 from evb_utils import *
 import numpy as np
-from evb_plot import plot_256
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from evb_plot import *
 import evb_extra
 import datetime
+
+def curve_func_order1(x, a, b):
+    return a * x + b
 
 class EVB_PMAD(object):
     def __init__(self):
@@ -515,6 +517,142 @@ class EVB_PMAD(object):
         for i in range(repeat):
             coef_sum += self.get_signed_code(self.mApb.read(addr,channel))
         return int(coef_sum/repeat)
+
+    def GetBerHoriontal(self, accum_set=12,  channel=0):
+        def get_count_num(accum_set=7):
+            count_set = [8,10,12,14, 16,18,20,22, 24,26,27,28, 29,30,31,32]
+            return count_set[accum_set] if accum_set < len(count_set) else 32
+
+        # 1. find vertical center (can be skipped if GetEye is done in advance)
+        c0h = min(63, int((self.mApb.read(0x6223C, channel) + 3) / 2.0))
+        c0l = min(63, int((self.mApb.read(0x62240, channel) + 1) / 2.0))
+        pam4 = (c0l != 0)
+        height_data = self.GetEye_HeightData(target=range(128), channel=channel)
+        h12, c12 = self.GetEye_HnC(height_data, 64 - c0h, 64 + c0h)
+
+        # 2. sweep phase and get err_eom.cnt
+        uc12 = (c12-64)*2 if (c12-64)*2 >= 0 else (c12-64)*2+256
+        # set alpha (internnaly, vref is also used, so only offset shall be set)
+        self.mApb.write(0x61018, 0x017|accum_set<<12, channel)
+        self.mApb.write(0x6101C, uc12, channel)
+        self.mApb.write(0x61020, uc12, channel)
+        self.mApb.write(0x61024, uc12, channel)
+
+        self.SetEomPosition(-self.mCfg.extra_h_phase, channel)
+        err_list = {'01':[],'12':[],'23':[]} if pam4 else {'12':[]}
+        for phase_sign in range(-self.mCfg.extra_h_phase, self.mCfg.extra_h_phase, 1):
+            phase = phase_sign if phase_sign >= 0 else (phase_sign+512)
+            if phase%10 == 0 and self.mCfg.b_dbg_print:
+                print("phase=(s:%d,u:%d)" % (phase_sign,phase))
+            # move to target phase
+            self.mApb.write(0x61008, phase, channel)
+            # eom en, eom_path
+            self.mApb.write(0x60100, 0<<6| 0<<7, channel, 1<<6|1<<7)
+            self.mApb.write(0x60100, 1<<7, channel, 1<<7)
+            # wait err_eom done
+            self.mApb.poll(0x63428, 1 << 1, channel, 1 << 1)
+            # get the results
+            if pam4:
+                err_list['01'].append(self.mApb.read(0x63410, channel) | (self.mApb.read(0x63414, channel) << 16))
+                err_list['23'].append(self.mApb.read(0x63420, channel) | (self.mApb.read(0x63424, channel) << 16))
+            err_list['12'].append(self.mApb.read(0x63418, channel) | (self.mApb.read(0x6341C, channel) << 16))
+
+        if self.mCfg.extra_h_dump:
+            for key,data_l in err_list.items():
+                fh = open(self.dump_abs_path+'err'+key+'_list.txt','w')
+                for data in data_l:
+                    fh.write(str(data)+'\n')
+                fh.close()
+        # 3. Extrapolation
+        extra_result = {}
+        count_num = get_count_num(accum_set)
+        for key,data_l in err_list.items():
+            extra_result[key] = self.GetBerHorizontal_Extrapolation(data_l,count_num)
+
+        # 4. plot
+        if self.mCfg.extra_h_plot:
+            plt_name = (self.mCfg.dump_abs_path+'hbat'+self.mCfg.GetCondition()+'.png')
+            PlotBerHorizontal_Bathtub(extra_result,plot_raw_en=self.mCfg.extra_h_plot_raw,plt_name=plt_name)
+
+        # 5. 3 points
+        result = []
+        result.append([0,0,0] if not pam4 else [extra_result['01']['left_y'],extra_result['01']['rght_y'],extra_result['01']['crss_y']])
+        result.append([extra_result['12']['left_y'],extra_result['12']['rght_y'],extra_result['12']['crss_y']])
+        result.append([0,0,0] if not pam4 else [extra_result['23']['left_y'],extra_result['23']['rght_y'],extra_result['23']['crss_y']])
+        return result
+
+    def GetBerHorizontal_Extrapolation(self, err_list, countNum=22):
+        def get_fit_err_list(err_list,pi_half_period=64):
+            center_left  = np.array(err_list).argmin()
+            center_rght  = len(err_list) - np.array(err_list[-1::-1]).argmin()
+            center       = max(pi_half_period, int((center_left + center_rght) / 2))
+            fit_err_list = err_list[center - pi_half_period:center + pi_half_period]
+            return fit_err_list
+        def replace_zero(list,replace=1e-50):
+            for idx,data in enumerate(list):
+                if data == 0:
+                    list[idx] = replace
+            return list
+        # common
+        pi_half_period = int(self.mCfg.pi_period/2)
+        pi_code    = np.array(range(-pi_half_period, pi_half_period, 1))
+        left_param = [-1, -10]
+        rght_param = [1, -10]
+        curve_func = curve_func_order1
+
+        # align center
+        fit_err_list = get_fit_err_list(err_list,pi_half_period)
+
+        # distribute left and right ber
+        ber_list  = np.array(fit_err_list) / 2**countNum
+        half_zero = np.zeros(pi_half_period)
+        left_ber  = np.hstack((ber_list[:pi_half_period],half_zero))
+        rght_ber  = np.hstack((half_zero,ber_list[pi_half_period:]))
+
+        # curve fit
+        curve_num        = self.mCfg.extra_h_curve_num
+        left_curve_x_end = max(curve_num,left_ber.argmin())
+        left_curve_x_beg = left_curve_x_end-curve_num
+        left_curve_x     = pi_code[left_curve_x_beg:left_curve_x_end]
+        left_curve_y     = np.log10(replace_zero(left_ber[left_curve_x_beg:left_curve_x_end]))
+        rght_curve_x_beg = len(rght_ber)-max(curve_num,np.array(rght_ber[-1::-1]).argmin())
+        rght_curve_x_end = rght_curve_x_beg+curve_num
+        rght_curve_x     = pi_code[rght_curve_x_beg:rght_curve_x_end]
+        rght_curve_y     = np.log10(replace_zero(rght_ber[rght_curve_x_beg:rght_curve_x_end]))
+
+        left_fit_param, covar = optimize.curve_fit(curve_func, left_curve_x, left_curve_y, left_param)
+        rght_fit_param, covar = optimize.curve_fit(curve_func, rght_curve_x, rght_curve_y, rght_param)
+        left_fit = np.hstack((left_ber[:left_curve_x_beg], (10**curve_func(pi_code[left_curve_x_beg:], left_fit_param[0],left_fit_param[1]))))
+        rght_fit = np.hstack( (10**curve_func(pi_code[:rght_curve_x_end], rght_fit_param[0],rght_fit_param[1]), rght_ber[rght_curve_x_end:]) )
+
+        #print('left_ber=>',left_ber)
+        #print('left curve =>', left_curve_x, left_curve_y)
+        #print('left_fit=>',left_fit)
+        #print('left_fit_param=>',left_fit_param)
+        #print('rght_ber=>',rght_ber)
+        #print('rght curve =>', rght_curve_x, rght_curve_y)
+        #print('rght_fit=>',rght_fit)
+        #print('rght_fit_param=>',rght_fit_param)
+
+        # TODO: find margin
+        margin_list = [-12,-15,-17]
+
+        # find cross points
+        left_y = np.interp(0,pi_code,left_fit)
+        rght_y = np.interp(0,pi_code,rght_fit)
+        crss_x = np.interp(0,(rght_fit-left_fit),pi_code)
+        crss_y = np.interp(crss_x, pi_code, left_fit)
+        # gather results
+        result = {}
+        result['left_ber'] = left_ber
+        result['left_fit'] = left_fit
+        result['left_y']   = left_y
+        result['rght_ber'] = rght_ber
+        result['rght_fit'] = rght_fit
+        result['rght_y']   = rght_y
+        result['crss_x']   = crss_x
+        result['crss_y']   = crss_y
+        return result
 #}}}
 #----------------------------------------------------------------------------------------------------
 # Config - base

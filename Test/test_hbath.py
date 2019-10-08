@@ -207,7 +207,7 @@ class Develop(object):
         return textFont,labelFont,titleFont
 
 if __name__ == '__main__':
-    test_num = 2
+    test_num = 1
     if test_num == 2:
         dut = Develop()
         #inFileName=r'C:\Users\SAMSUNG\Desktop\CISCO visit\3. Programs\Python_env\GitHub\ber_eom(53g_prbs7)\err12_list.txt'
@@ -226,10 +226,13 @@ if __name__ == '__main__':
     if test_num == 1:
         chip = SF56G()
         chip.SetConfig('lane_en',1)
+        chip.SetConfig('extra_h_dump',True)
+        chip.SetConfig('extra_h_plot',True)
+        chip.SetConfig('extra_h_plot_raw',True)
         chip.SetConfig('b_dbg_print',False)
         chip.build()
         #print(chip.mCfg)
-        if(chip.init_evb() < 0):
+        if(chip.init_evb(channels=[0]) < 0):
             print("exit by apb error")
             exit (-1)
         #chip.set_datarate(53.125)
@@ -247,9 +250,9 @@ if __name__ == '__main__':
         print("ber=%4.2e" % (ber))
         if ber < 1e-4:
             # dut
-            t = Develop(chip)
             t_beg = time.time()
-            o = t.GetBathHorizon(12,True,True,0)
+            o = chip.GetBerHoriontal(accum_set=12,channel=0)
             t_end = time.time()
             print("processing time = %ds" % (t_end-t_beg))
+            print(o)
 

@@ -50,7 +50,7 @@ class SF56G (object):
 #----------------------------------------------------------------------------------------------------
  def Delay(self,ms):
   Delay(ms)
- def init_evb(self,channels):
+ def init_evb(self,channels=[0]):
   lane_en = 0
   for c in channels:
    lane_en += 1<<c

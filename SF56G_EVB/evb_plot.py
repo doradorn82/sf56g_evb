@@ -463,3 +463,39 @@ def plot_vco(filename):
 
 
 
+def plot_favorite():
+    axisFont = {'family' : 'serif', 'weight' : 'bold','size'   : 12}
+    textFont = {'family' : 'serif', 'weight' : 'bold','size'   : 11}
+    labelFont = {'family' : 'sans-serif','weight' : 'bold','size'   : 15}
+    titleFont = {'family' : 'sans-serif','weight' : 'bold','size'   : 20}
+    rcParams.update({'figure.autolayout': True})
+    plt.rc('font', **axisFont)
+    return textFont,labelFont,titleFont
+
+def PlotBerHorizontal_Bathtub(data_pack,plot_raw_en=False,pi_period=128,plt_name='hbath.png'):
+    fonts = plot_favorite()
+    half_period = int(pi_period/2)
+    pi_code = np.array(range(-half_period, half_period, 1))
+    plt.figure(figsize=[7,6])
+    idx = 0
+    for key,data in data_pack.items():
+        # raw,fit
+        if plot_raw_en:
+            plt.semilogy(pi_code,data['left_ber'],'bo')
+            plt.semilogy(pi_code,data['rght_ber'],'bo')
+        plt.semilogy(pi_code,data['left_fit'])
+        plt.semilogy(pi_code,data['rght_fit'])
+        # crss
+        plt.text(0,10**-(20+4*idx),'<EYE%s>\nBER@L = %.2e\nBER@H = %.2e\nBER@X = %.2e'%(key,data['left_y'],data['rght_y'],data['crss_y']),color='k',fontsize=10)
+        idx+=1
+    # config
+    plt.grid()
+    plt.xlim([-64,64])
+    plt.ylim([1e-30,1])
+    plt.yticks(10**(np.arange(0.0,-31.0,step=-2.0)))
+    plt.minorticks_on()
+    plt.tick_params(axis='x',which='both',direction='out',length=4,pad=8)
+    plt.xlabel('Phase',**fonts[1])
+    plt.ylabel('BER',**fonts[1],fontsize=18)
+    plt.savefig(plt_name,dpi=200)
+    plt.close()
