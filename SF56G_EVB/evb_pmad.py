@@ -90,7 +90,7 @@ class EVB_PMAD(object):
             self.DumpRegs(fh,0x60700,0x60710,channel)
             self.DumpRegs(fh,0x60800,0x609C0,channel)
             self.DumpRegs(fh,0x61000,0x61024,channel)
-            self.DumpRegs(fh,0x61FF8,0x6224C,channel)
+            self.DumpRegs(fh,0x61FF8,0x62274,channel)
             self.DumpRegs(fh,0x63410,0x6358C,channel) #EOM_ERROR/MMCDR/ADC_IOC/CAL/INIT_FORCE
             self.DumpRegs(fh,0x64000,0x640F0,channel) #FSM/CAL_FSM/MMCDR_SKEW_CODE/MMCDR_CONFIGs/etc
             self.DumpRegs(fh,0x64100,0x64208,channel) #ADC_CAL_xx
@@ -363,7 +363,7 @@ class EVB_PMAD(object):
             return 0
     def GetLog(self,tag='',channel=0):
         date = datetime.datetime.now()
-        date_str = '_%s%s%s_%s%s_%s' % (str(date.year),str(date.month),str(date.day),str(date.hour),str(date.minute),tag)
+        date_str = '_%4d%2d%2d_%2d%2d_%s' % (date.year,date.month,date.day,date.hour,date.minute,tag.replace(' ','_'))
         self.DumpRegFile(target=['tx','rx','cmn'],tag=date_str,channel=channel)
 
     def GetStatus(self,measure_bits_db=30,extra_ber_en=1,HeightOnly=1,lin_fit_en=1,lin_fit_point=41,lin_fit_main=10,imp_eq_out=0,tag='',channel=0):
@@ -395,10 +395,10 @@ class EVB_PMAD(object):
         # BER_EXTRA
         if(extra_ber_en==1 and result['ber']<1e-6):
             result['voltage_margin'],result['extra_ber_vertical']=self.get_extra_ber_vertical(pam4=self.is_pam4_rate(self.mCfg.data_rate),ln_i=channel)
-            result['extra_ber_horizontal'] = self.get_extra_ber_horizontal(channel=channel)
+            result['ui_margin'],result['extra_ber_horizontal'] = self.get_extra_ber_horizontal(channel=channel)
         else:
-            result['voltage_margin'],result['extra_ber_vertical']=[[0]],[[0.5,0.5,0.5]]
-            result['extra_ber_horizontal'] = [0.5]*3
+            result['voltage_margin'],result['extra_ber_vertical']=[[0]], [[0.5,0.5,0.5]]
+            result['ui_margin'],result['extra_ber_horizontal'] =[0]*9, [0.5]*9
         # EYE
         eye = self.meas_eye(HeightOnly,channel)
         result['eye01_height'] = eye[0]
@@ -525,10 +525,13 @@ class EVB_PMAD(object):
             coef_sum += self.get_signed_code(self.mApb.read(addr,channel))
         return int(coef_sum/repeat)
 
-    def get_extra_ber_horizontal(self, accum_set=12,  channel=0):
+    def get_extra_ber_horizontal(self, channel=0):
         def get_count_num(accum_set=7):
             count_set = [8,10,12,14, 16,18,20,22, 24,26,27,28, 29,30,31,32]
             return count_set[accum_set] if accum_set < len(count_set) else 32
+
+        # 0. bring config values
+        accum_set = self.mCfg.extra_h_accum_set
 
         # 1. find vertical center (can be skipped if GetEye is done in advance)
         c0h = min(63, int((self.mApb.read(0x6223C, channel) + 3) / 2.0))
@@ -581,12 +584,13 @@ class EVB_PMAD(object):
             plt_name = (self.mCfg.dump_abs_path+'hbath'+self.mCfg.GetCondition()+'.png')
             PlotBerHorizontal_Bathtub(extra_result,plot_raw_en=self.mCfg.extra_h_plot_raw,plt_name=plt_name)
 
-        # 5. 3 points
-        result = []
-        result += ([0,0,0] if not pam4 else [extra_result['01']['left_y'],extra_result['01']['rght_y'],extra_result['01']['crss_y']])
-        result += ([extra_result['12']['left_y'],extra_result['12']['rght_y'],extra_result['12']['crss_y']])
-        result += ([0,0,0] if not pam4 else [extra_result['23']['left_y'],extra_result['23']['rght_y'],extra_result['23']['crss_y']])
-        return result
+        # 5. result
+        ber_result = []
+        ber_result += ([0,0,0] if not pam4 else [extra_result['01']['left_y'],extra_result['01']['rght_y'],extra_result['01']['crss_y']])
+        ber_result += ([extra_result['12']['left_y'],extra_result['12']['rght_y'],extra_result['12']['crss_y']])
+        ber_result += ([0,0,0] if not pam4 else [extra_result['23']['left_y'],extra_result['23']['rght_y'],extra_result['23']['crss_y']])
+        ui_result  = [0]*9
+        return ui_result, ber_result
 
 #}}}
 #----------------------------------------------------------------------------------------------------
