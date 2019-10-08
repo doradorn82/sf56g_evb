@@ -360,7 +360,7 @@ class EVB_PMAD(object):
             return max(thld_data)
         else:
             return 0
-    def GetStatus(self,measure_bits_db=30,extra_ber_en=1,HeightOnly=1,lin_fit_en=1,lin_fit_point=41,lin_fit_main=10,imp_eq_out=0,channel=0):
+    def GetStatus(self,measure_bits_db=30,extra_ber_en=1,HeightOnly=1,lin_fit_en=1,lin_fit_point=41,lin_fit_main=10,imp_eq_out=0,tag='',channel=0):
         result = {}
         # TxEQ
         result['tx_pre2'] = self.tx_pre2[channel]
@@ -385,7 +385,7 @@ class EVB_PMAD(object):
         if result['ber'] >= self.mCfg.log_ber_thld:
             print("logging by ber=%4.2e"%result['ber'])
             date = datetime.datetime.now()
-            date_str = '_%s%s%s_%s%s' % (str(date.year),str(date.month),str(date.day),str(date.hour),str(date.minute))
+            date_str = '_%s%s%s_%s%s_%s' % (str(date.year),str(date.month),str(date.day),str(date.hour),str(date.minute),tag)
             self.DumpRegFile(target=['tx','rx','cmn'],tag=date_str,channel=channel)
 
         if(extra_ber_en==1 and result['ber']<1e-6):
