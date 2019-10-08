@@ -29,6 +29,14 @@ class EVB_APB(object):
         if self.mCfg.b_dbg_apb_read:
             print ("[ApbRead] 0x%x => 0x%x" % (raddr,rdata))
         return rdata
+    def poll(self,addr,data,channel=0,mask=0xffff,timeout=1000):
+        cnt = 0
+        find = False
+        while cnt < timeout and not find:
+            rdata = self.read(addr,channel)
+            cnt += 1
+            if rdata & mask == data:
+                find = True
 
     def write(self,addr,data,channel=0,mask=None,track=False):
         waddr = addr+0x40000*channel

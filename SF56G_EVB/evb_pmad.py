@@ -6,6 +6,7 @@ from matplotlib import rcParams
 from evb_plot import *
 import evb_extra
 import datetime
+from scipy import optimize
 
 def curve_func_order1(x, a, b):
     return a * x + b
@@ -396,7 +397,7 @@ class EVB_PMAD(object):
         # BER_EXTRA
         if(extra_ber_en==1 and result['ber']<1e-6):
             result['voltage_margin'],result['extra_ber']=self.get_extra_ber(pam4=self.is_pam4_rate(self.mCfg.data_rate),ln_i=channel)
-            result['extra_ber_horizontal'] = self.GetBerHoriontal(channel=channel)
+            result['extra_ber_horizontal'] = self.GetBerHorizontal(channel=channel)
         else:
             result['voltage_margin'],result['extra_ber']=[[0]],[[0.5,0.5,0.5]]
             result['extra_ber_horizontal'] = [0.5]*9
@@ -526,7 +527,7 @@ class EVB_PMAD(object):
             coef_sum += self.get_signed_code(self.mApb.read(addr,channel))
         return int(coef_sum/repeat)
 
-    def GetBerHoriontal(self, accum_set=12,  channel=0):
+    def GetBerHorizontal(self, accum_set=12,  channel=0):
         def get_count_num(accum_set=7):
             count_set = [8,10,12,14, 16,18,20,22, 24,26,27,28, 29,30,31,32]
             return count_set[accum_set] if accum_set < len(count_set) else 32
@@ -567,7 +568,7 @@ class EVB_PMAD(object):
 
         if self.mCfg.extra_h_dump:
             for key,data_l in err_list.items():
-                fh = open(self.dump_abs_path+'err'+key+'_list.txt','w')
+                fh = open(self.mCfg.dump_abs_path+'err'+key+'_list.txt','w')
                 for data in data_l:
                     fh.write(str(data)+'\n')
                 fh.close()
@@ -579,7 +580,7 @@ class EVB_PMAD(object):
 
         # 4. plot
         if self.mCfg.extra_h_plot:
-            plt_name = (self.mCfg.dump_abs_path+'hbat'+self.mCfg.GetCondition()+'.png')
+            plt_name = (self.mCfg.dump_abs_path+'hbath'+self.mCfg.GetCondition()+'.png')
             PlotBerHorizontal_Bathtub(extra_result,plot_raw_en=self.mCfg.extra_h_plot_raw,plt_name=plt_name)
 
         # 5. 3 points

@@ -6,7 +6,7 @@ import time
 
 import os
 import sys
-evb_path = r'C:/Users/SAMSUNG/Desktop/CISCO visit/3. Programs/Python_env/GitHub/sf56g_evb/SF56G_EVB'
+evb_path = r'C:/Users/SAMSUNG/Desktop/CISCO visit/3. Programs/Python_env/github/sf56g_evb/SF56G_EVB'
 os.environ['SF56G_EVB_PATH'] = evb_path
 sys.path.insert(0,evb_path)
 from LibSF56G import SF56G
@@ -229,7 +229,7 @@ if __name__ == '__main__':
         chip.SetConfig('extra_h_dump',True)
         chip.SetConfig('extra_h_plot',True)
         chip.SetConfig('extra_h_plot_raw',True)
-        chip.SetConfig('b_dbg_print',False)
+        chip.SetConfig('b_dbg_print',True)
         chip.build()
         #print(chip.mCfg)
         if(chip.init_evb(channels=[0]) < 0):
@@ -244,14 +244,15 @@ if __name__ == '__main__':
         #chip.tune_rx()
         chip.mPmad.PrintLaneState()
         chip.mPmad.PrintAllRxCoef()
-        chip.GetHistogram()
+        #chip.GetHistogram()
 
         ber = chip.meas_ber()
         print("ber=%4.2e" % (ber))
         if ber < 1e-4:
             # dut
             t_beg = time.time()
-            status = chip.mPmad.GetStatus(HeightOnly=1,lin_fit_en=0,tag='test run',channel=0)
+            #status = chip.mPmad.GetStatus(HeightOnly=1,lin_fit_en=0,tag='test run',channel=0)
+            status = chip.mPmad.GetBerHorizontal(7,0)
             t_end = time.time()
             print("processing time = %ds" % (t_end-t_beg))
             print(status)
