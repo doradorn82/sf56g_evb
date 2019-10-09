@@ -480,7 +480,7 @@ def PlotBerHorizontal_Bathtub(data_pack,margin_list,plot_raw_en=False,pi_period=
     idx = 0
     for key,data in data_pack.items():
         # raw,fit
-        color = {'01':'g','12':'b','23':'r'}[key]
+        color = {'01':'b','12':'m','23':'g'}[key]
         text_x = {'01':0.55,'12':0.70,'23':0.85}[key]
         if plot_raw_en:
             plt.semilogy(pi_code/128,data['left_ber'],color+'o')
@@ -490,9 +490,9 @@ def PlotBerHorizontal_Bathtub(data_pack,margin_list,plot_raw_en=False,pi_period=
         for idx,margin in enumerate(data['margin']):
             line = 'k--' if margin > 0 else 'r--'
             plt.semilogy([data['left_margin'][idx],data['rght_margin'][idx]],[10**margin_list[idx]]*2,line)
-            plt.text(text_x,10**margin_list[idx],'%.1f UI\n(1e%d)' % (margin,margin_list[idx]),**textFont)
+            plt.text(text_x,10**margin_list[idx],'%.2f UI\n(1e%d)' % (margin,margin_list[idx]),**textFont)
         plt.text(text_x,1e-4,'<EYE%s>'%(key),**textFont)
-        plt.text(text_x,1e-28,'BER@L\n=%.2e\nBER@H\n=%.2e\nBER@X\n=%.2e'%(data['ber_center'][0],data['ber_center'][1],data['ber_center'][2]),**textFont)
+        plt.text(text_x,1e-28,'BER@L\n=%.2g\nBER@H\n=%.2g\nBER@X\n=%.2g'%(data['ber_center'][0],data['ber_center'][1],data['ber_center'][2]),**textFont)
         idx+=1
     # config
     plt.subplots_adjust(top=0.9,left=0.15,bottom=0.15,right=0.7)

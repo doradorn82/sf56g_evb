@@ -77,10 +77,15 @@ def bathtub_extrapolation_vertical(filename,filename2,countNum=29,countNum2=19,p
             if((pam4==1 and len(decisionLevel)==3) or (pam4==0)):
                 break
     zeroData=np.zeros(dataLen)
-    marginList=[]
-    berList=[]
+    marginList=[[0]*len(berMarginYList)]*3
+    berList=[[0.5,0.5,0.5]]*3
     plt.figure(figsize=[7,5])
+
     for lev_i,deci in enumerate(decisionLevel):
+        if(pam4==1):
+            eff_lev_i = lev_i
+        else:
+            eff_lev_i = lev_i + 1
         if(lev_i==0):
             low  = np.hstack((hist[:deci],zeroData[deci:]))
             if(pam4==1):
@@ -201,8 +206,8 @@ def bathtub_extrapolation_vertical(filename,filename2,countNum=29,countNum2=19,p
             fitCrossHighY = np.interp(np.mean(adcCode[deci:deci+2]),adcCode,fitCdfHigh)
         fitCrossX = np.interp(0,fitCdfHigh-fitCdfLow,adcCode)
         fitCrossY = np.interp(fitCrossX,adcCode,fitCdfLow)
-        marginList.append(margin)
-        berList.append([fitCrossLowY,fitCrossHighY,fitCrossY])
+        marginList[eff_lev_i] = list(margin)
+        berList[eff_lev_i] = [fitCrossLowY,fitCrossHighY,fitCrossY]
        
         ##Plot result
         if(pam4==1):
@@ -219,7 +224,7 @@ def bathtub_extrapolation_vertical(filename,filename2,countNum=29,countNum2=19,p
         if(lev_i==0):
             col='b'
         elif(lev_i==1):
-            col='r'
+            col='m'
         else:
             col='g'
         plt.semilogy(adcCode,cdfLow,col+'o')
@@ -227,12 +232,16 @@ def bathtub_extrapolation_vertical(filename,filename2,countNum=29,countNum2=19,p
         plt.semilogy(adcCode,cdfHigh,col+'o')
         plt.semilogy(adcCode,fitCdfHigh,col,linewidth=2)
         for i in range(len(berMarginYList)):
-            plt.semilogy([fitLowX[i],fitHighX[i]],[10**berMarginYList[i]]*2,'k--')
+            if(fitLowX[i]<fitHighX[i]):
+                plt.semilogy([fitLowX[i], fitHighX[i]], [10 ** berMarginYList[i]] * 2, 'k--')
+            else:
+                plt.semilogy([fitLowX[i], fitHighX[i]], [10 ** berMarginYList[i]] * 2, 'r--')
             #plt.text(fitHighX[i],10**berMarginYList[i],' %.1f mV\n(1e%d)'%(margin[i],berMarginYList[i]),**textFont)
-            plt.text(220+lev_i*60, 10 ** berMarginYList[i], ' %.1f mV\n(1e%d)' % (margin[i], berMarginYList[i]), **textFont)
+            plt.text(220+eff_lev_i*60, 10 ** berMarginYList[i], ' %.1f mV\n(1e%d)' % (margin[i], berMarginYList[i]), **textFont)
+            plt.text(220+eff_lev_i*60, 10 ** berMarginYList[i], ' %.1f mV\n(1e%d)' % (margin[i], berMarginYList[i]), **textFont)
         #plt.text(fitCrossX,1e-28,'BER@L\n=%.2g\nBER@H\n=%.2g\nBER@X\n=%.2g'%(fitCrossLowY,fitCrossHighY,fitCrossY),**textFont)
-        plt.text(220 + lev_i * 60, 1e-4, '<EYE%d%d>'%(lev_i,lev_i+1), **textFont)
-        plt.text(220 + lev_i * 60, 1e-28, 'BER@L\n=%.2g\nBER@H\n=%.2g\nBER@X\n=%.2g' % (fitCrossLowY, fitCrossHighY, fitCrossY),
+        plt.text(220 + eff_lev_i * 60, 1e-4, '<EYE%d%d>'%(eff_lev_i,eff_lev_i+1), **textFont)
+        plt.text(220 + eff_lev_i * 60, 1e-28, 'BER@L\n=%.2g\nBER@H\n=%.2g\nBER@X\n=%.2g' % (fitCrossLowY, fitCrossHighY, fitCrossY),
                           **textFont)
     plt.subplots_adjust(top=0.9,left=0.15,bottom=0.15,right=0.7)
     plt.title('Vertical Bathtub BER',**titleFont)
