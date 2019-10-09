@@ -241,8 +241,12 @@ def bathtub_extrapolation_vertical(filename,filename2,countNum=29,countNum2=19,p
             plt.text(220+eff_lev_i*60, 10 ** berMarginYList[i], ' %.1f mV\n(1e%d)' % (margin[i], berMarginYList[i]), **textFont)
         #plt.text(fitCrossX,1e-28,'BER@L\n=%.2g\nBER@H\n=%.2g\nBER@X\n=%.2g'%(fitCrossLowY,fitCrossHighY,fitCrossY),**textFont)
         plt.text(220 + eff_lev_i * 60, 1e-4, '<EYE%d%d>'%(eff_lev_i,eff_lev_i+1), **textFont)
-        plt.text(220 + eff_lev_i * 60, 1e-28, 'BER@L\n=%.2g\nBER@H\n=%.2g\nBER@X\n=%.2g' % (fitCrossLowY, fitCrossHighY, fitCrossY),
-                          **textFont)
+        if(pam4==1):
+            plt.text(220 + eff_lev_i * 60, 1e-18, 'BER@L\n=%.2g\nBER@H\n=%.2g\nBER@X\n=%.2g' % (fitCrossLowY, fitCrossHighY, fitCrossY),
+                     **textFont)
+        else:
+            plt.text(220 + eff_lev_i * 60, 1e-28, 'BER@L\n=%.2g\nBER@H\n=%.2g\nBER@X\n=%.2g' % (fitCrossLowY, fitCrossHighY, fitCrossY),
+                     **textFont)
     plt.subplots_adjust(top=0.9,left=0.15,bottom=0.15,right=0.7)
     plt.title('Vertical Bathtub BER',**titleFont)
     plt.xlim([-200,200])
@@ -250,7 +254,10 @@ def bathtub_extrapolation_vertical(filename,filename2,countNum=29,countNum2=19,p
     plt.minorticks_on()
     plt.tick_params(axis='x',which='both',direction='out',length=4,pad=8)
     plt.grid()
-    plt.ylim([1e-30,1])
+    if(pam4==1):
+        plt.ylim([1e-20,1])
+    else:
+        plt.ylim([1e-30,1])
     plt.xlabel('Voltage [mV]',**labelFont)
     plt.ylabel('BER',**labelFont)
     plt.savefig(filename.replace('.txt','_bathtub.png'),dpi=200)

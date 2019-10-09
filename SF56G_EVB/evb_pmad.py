@@ -6,6 +6,7 @@ from matplotlib import rcParams
 from evb_plot import *
 import evb_extra
 import datetime
+import time
 from scipy import optimize
 
 
@@ -363,7 +364,7 @@ class EVB_PMAD(object):
             return 0
     def GetLog(self,tag='',channel=0):
         date = datetime.datetime.now()
-        date_str = '_%4d%2d%2d_%2d%2d_%s' % (date.year,date.month,date.day,date.hour,date.minute,tag.replace(' ','_'))
+        date_str = '_%04d%02d%02d_%02d%02d_%s' % (date.year,date.month,date.day,date.hour,date.minute,tag.replace(' ','_'))
         self.DumpRegFile(target=['tx','rx','cmn'],tag=date_str,channel=channel)
 
     def GetStatus(self,measure_bits_db=30,extra_ber_en=1,HeightOnly=1,lin_fit_en=1,lin_fit_point=41,lin_fit_main=10,imp_eq_out=0,tag='',channel=0):
@@ -1461,6 +1462,7 @@ class EVB_PMAD(object):
             minVal = maxMin & 0xff
             print("Max= %d" %maxVal)
             print("Min= %d" %minVal)
+        self.mApb.write(0x601cc, 0x000001ff, ln_i)   # power rdc en [0]
         return 0
     def AfeTuneScale(self, ln_i=0):
         rxstate = self.mApb.read(0x64000,ln_i)
@@ -1899,13 +1901,19 @@ class EVB_PMAD(object):
         mon_sel = eq_out
         databist = self.mApb.read(0x50104, channel)  # tx bist
         dataencode = self.mApb.read(0x50084, channel)  # encode sel
+        time.sleep(0.1)
         self.mApb.write(0x00060190, 0x00000000 | mon_sel, channel)
-        self.mApb.write(0x50104, 1 << 2, channel, mask=0x3 << 2)
-        self.mApb.write(0x50104, 1 << 5, channel, mask=0x1 << 5)
+        time.sleep(0.1)
+        self.mApb.write(0x50104, 1 << 2 + 1 << 5, channel, mask=(0x3 << 2 + 0x1 << 5))
+        time.sleep(0.1)
         self.mApb.write(0x50084, 2 << 3, channel, mask=0x3 << 3)
+        time.sleep(0.1)
         self.mApb.write(0x00060190, 0x00000002 | mon_sel, channel)
+        time.sleep(0.1)
         self.mApb.write(0x50104, databist, channel)  # tx bist
+        time.sleep(0.1)
         self.mApb.write(0x50084, dataencode, channel)  # encode sel
+        time.sleep(0.1)
         dumpData=[]
         for i in range(256):
             addr = 0x00065000 + +i * 4
