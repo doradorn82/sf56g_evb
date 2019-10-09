@@ -27,6 +27,7 @@ class EVB_CONFIG(object):
         #self.b_init_boost_current = True
         self.b_WA0 = True
         self.b_use_old_tune = False
+        self.ber_fail_value = 0.5
         self.ber_init_cnt = 0
         self.ber_delay_margin = 0
         self.ber_max_measure_bit = 50
