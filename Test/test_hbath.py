@@ -150,7 +150,6 @@ class Develop(object):
         #print('rght_fit=>',rght_fit)
         #print('rght_fit_param=>',rght_fit_param)
 
-        # TODO: find margin
         margin_list = [-12,-15,-17]
 
         # find cross points

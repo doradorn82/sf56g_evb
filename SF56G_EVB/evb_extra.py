@@ -9,10 +9,10 @@ from matplotlib import rcParams
 from scipy import optimize
 def plot_favorite():
     axisFont = {'family' : 'serif', 'weight' : 'bold','size'   : 11}
-    textFont = {'family' : 'serif', 'weight' : 'bold','size'   : 9}
+    textFont = {'family' : 'serif', 'weight' : 'bold','size'   : 7}
     labelFont = {'family' : 'sans-serif','weight' : 'bold','size'   : 13}
     titleFont = {'family' : 'sans-serif','weight' : 'bold','size'   : 16}
-    rcParams.update({'figure.autolayout': True})
+    rcParams.update({'figure.autolayout': False})
     plt.rc('font', **axisFont)
     return textFont,labelFont,titleFont
 def normFunc(x, xMean, sigma):
@@ -79,7 +79,7 @@ def bathtub_extrapolation_vertical(filename,filename2,countNum=29,countNum2=19,p
     zeroData=np.zeros(dataLen)
     marginList=[]
     berList=[]
-    plt.figure(figsize=[6,5])
+    plt.figure(figsize=[7,5])
     for lev_i,deci in enumerate(decisionLevel):
         if(lev_i==0):
             low  = np.hstack((hist[:deci],zeroData[deci:]))
@@ -228,8 +228,13 @@ def bathtub_extrapolation_vertical(filename,filename2,countNum=29,countNum2=19,p
         plt.semilogy(adcCode,fitCdfHigh,col,linewidth=2)
         for i in range(len(berMarginYList)):
             plt.semilogy([fitLowX[i],fitHighX[i]],[10**berMarginYList[i]]*2,'k--')
-            plt.text(fitHighX[i],10**berMarginYList[i],' %.1f mV\n(1e%d)'%(margin[i],berMarginYList[i]),**textFont)
-        plt.text(fitCrossX,1e-28,'BER@L\n=%.2g\nBER@H\n=%.2g\nBER@X\n=%.2g'%(fitCrossLowY,fitCrossHighY,fitCrossY),**textFont)
+            #plt.text(fitHighX[i],10**berMarginYList[i],' %.1f mV\n(1e%d)'%(margin[i],berMarginYList[i]),**textFont)
+            plt.text(220+lev_i*60, 10 ** berMarginYList[i], ' %.1f mV\n(1e%d)' % (margin[i], berMarginYList[i]), **textFont)
+        #plt.text(fitCrossX,1e-28,'BER@L\n=%.2g\nBER@H\n=%.2g\nBER@X\n=%.2g'%(fitCrossLowY,fitCrossHighY,fitCrossY),**textFont)
+        plt.text(220 + lev_i * 60, 1e-4, '<EYE%d%d>'%(lev_i,lev_i+1), **textFont)
+        plt.text(220 + lev_i * 60, 1e-28, 'BER@L\n=%.2g\nBER@H\n=%.2g\nBER@X\n=%.2g' % (fitCrossLowY, fitCrossHighY, fitCrossY),
+                          **textFont)
+    plt.subplots_adjust(top=0.9,left=0.15,bottom=0.15,right=0.7)
     plt.title('Vertical Bathtub BER',**titleFont)
     plt.xlim([-200,200])
     plt.yticks(10**(np.arange(0.0,-31.0,step=-2.0)))
@@ -245,7 +250,7 @@ def bathtub_extrapolation_vertical(filename,filename2,countNum=29,countNum2=19,p
 
 def curve_func_order1(x, a, b):
     return a * x + b
-def bathtub_extrapolation_horizontal(err_list, countNum=22, margin_list=[-12,-15,-17]):
+def bathtub_extrapolation_horizontal(err_list, countNum=22, margin_list=[-12,-15,-17],tag=''):
     extra_h_curve_num = 4
     pi_period = 128
     pi_half_period = int(pi_period/2)
@@ -253,7 +258,10 @@ def bathtub_extrapolation_horizontal(err_list, countNum=22, margin_list=[-12,-15
         center_left  = np.array(err_list).argmin()
         center_rght  = len(err_list) - np.array(err_list[-1::-1]).argmin()
         center       = max(pi_half_period, int((center_left + center_rght) / 2))
-        fit_err_list = err_list[center - pi_half_period:center + pi_half_period]
+        fit_center   = min((len(err_list)-pi_half_period),max(pi_half_period,center))
+        fit_err_list = err_list[fit_center - pi_half_period:fit_center + pi_half_period]
+        #if (fit_center != center):
+        #    print("[extra_ber_h] center left(%d) rght(%d) mid(%d) fit(%d) list len(%d)" %(center_left,center_rght,center,fit_center,len(fit_err_list)))
         return fit_err_list
     def replace_zero(list,replace=1e-50):
         for idx,data in enumerate(list):
@@ -298,7 +306,9 @@ def bathtub_extrapolation_horizontal(err_list, countNum=22, margin_list=[-12,-15
     #print('left_fit_param=>',left_fit_param)
     #print('rght_ber=>',rght_ber)
     #print('rght curve =>', rght_curve_x, rght_curve_y)
-    #print('rght_fit=>',rght_fit)
+    #print(("[%s] rght_fit_param=>" %(tag)),rght_fit_param)
+    #print(('[%s] rght_ber=>' %(tag)),rght_ber)
+    #print(('[%s] rght_fit=>' %(tag)),rght_fit)
     #print('rght_fit_param=>',rght_fit_param)
 
     # find margin
@@ -321,4 +331,6 @@ def bathtub_extrapolation_horizontal(err_list, countNum=22, margin_list=[-12,-15
     result['crss_x']   = crss_x
     result['ber_center'] = [left_y,rght_y,crss_y]
     result['margin']   = margin
+    result['left_margin'] = left_margin/128
+    result['rght_margin'] = rght_margin/128
     return result

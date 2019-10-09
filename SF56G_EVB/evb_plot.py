@@ -465,15 +465,15 @@ def plot_vco(filename):
 
 def plot_favorite():
     axisFont = {'family' : 'serif', 'weight' : 'bold','size'   : 11}
-    textFont = {'family' : 'serif', 'weight' : 'bold','size'   : 9}
+    textFont = {'family' : 'serif', 'weight' : 'bold','size'   : 7}
     labelFont = {'family' : 'sans-serif','weight' : 'bold','size'   : 13}
     titleFont = {'family' : 'sans-serif','weight' : 'bold','size'   : 16}
-    rcParams.update({'figure.autolayout': True})
+    rcParams.update({'figure.autolayout': False})
     plt.rc('font', **axisFont)
     return textFont,labelFont,titleFont
 
-def PlotBerHorizontal_Bathtub(data_pack,plot_raw_en=False,pi_period=128,plt_name='hbath.png'):
-    fonts = plot_favorite()
+def PlotBerHorizontal_Bathtub(data_pack,margin_list,plot_raw_en=False,pi_period=128,plt_name='hbath.png'):
+    textFont,labelFont,titleFont = plot_favorite()
     half_period = int(pi_period/2)
     pi_code = np.array(range(-half_period, half_period, 1))
     plt.figure(figsize=[7,5])
@@ -481,24 +481,29 @@ def PlotBerHorizontal_Bathtub(data_pack,plot_raw_en=False,pi_period=128,plt_name
     for key,data in data_pack.items():
         # raw,fit
         color = {'01':'g','12':'b','23':'r'}[key]
-        text_x = {'01':-0.45,'12':-0.15,'23':0.15}[key]
+        text_x = {'01':0.55,'12':0.70,'23':0.85}[key]
         if plot_raw_en:
             plt.semilogy(pi_code/128,data['left_ber'],color+'o')
             plt.semilogy(pi_code/128,data['rght_ber'],color+'o')
         plt.semilogy(pi_code/128,data['left_fit'],color,linewidth=2)
         plt.semilogy(pi_code/128,data['rght_fit'],color,linewidth=2)
-        # crss
-        plt.text(text_x,10**-(20+4*1),'<EYE%s>\nBER@L = %.2e\nBER@H = %.2e\nBER@X = %.2e'%(key,data['ber_center'][0],data['ber_center'][1],data['ber_center'][2]),color='k',fontsize=9)
+        for idx,margin in enumerate(data['margin']):
+            line = 'k--' if margin > 0 else 'r--'
+            plt.semilogy([data['left_margin'][idx],data['rght_margin'][idx]],[10**margin_list[idx]]*2,line)
+            plt.text(text_x,10**margin_list[idx],'%.1f UI\n(1e%d)' % (margin,margin_list[idx]),**textFont)
+        plt.text(text_x,1e-4,'<EYE%s>'%(key),**textFont)
+        plt.text(text_x,1e-28,'BER@L\n=%.2e\nBER@H\n=%.2e\nBER@X\n=%.2e'%(data['ber_center'][0],data['ber_center'][1],data['ber_center'][2]),**textFont)
         idx+=1
     # config
+    plt.subplots_adjust(top=0.9,left=0.15,bottom=0.15,right=0.7)
     plt.grid()
     plt.xlim([-0.5,0.5])
     plt.ylim([1e-30,1])
     plt.yticks(10**(np.arange(0.0,-31.0,step=-2.0)))
     plt.minorticks_on()
     plt.tick_params(axis='x',which='both',direction='out',length=4,pad=8)
-    plt.title('Horizontal Bathtub BER',**fonts[2])
-    plt.xlabel('Phase [UI]',**fonts[1])
-    plt.ylabel('BER',**fonts[1])
+    plt.title('Horizontal Bathtub BER',**titleFont)
+    plt.xlabel('Phase [UI]',**labelFont)
+    plt.ylabel('BER',**labelFont)
     plt.savefig(plt_name,dpi=200)
     plt.close()

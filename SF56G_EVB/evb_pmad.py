@@ -488,34 +488,43 @@ class EVB_PMAD(object):
             maxval = maxval-128
         return (minval,maxval)
     def GetBer(self, measure_bits_db=30 ,channel=0):
+        if measure_bits_db > self.mCfg.ber_max_measure_bit:
+            print("[GetBer] config too big measure_bit_db")
+            measure_bits_db = self.mCfg.ber_max_measure_bit
         # calculate measure time
         if self.is_bbpd_rate(self.mCfg.data_rate):
-            sfr_measure = measure_bits_db - 4
+            measure_cycle = measure_bits_db - 4
         elif self.is_pam4_rate(self.mCfg.data_rate):
-            sfr_measure = measure_bits_db - 6
+            measure_cycle = measure_bits_db - 6
         else:
-            sfr_measure = measure_bits_db - 5
-        sfr_measure = max(1,sfr_measure)
-        sfr_measure = min(31,sfr_measure)
-        measure_time = 250 * (2**(max(27,sfr_measure)-26))
+            measure_cycle = measure_bits_db - 5
+        sfr_measure  = min(31,max(1,measure_cycle))
+        measure_time = 250 * (2**(max(27,sfr_measure)-27+self.mCfg.ber_delay_margin))
+        repeat       = max(1,2**(measure_cycle-sfr_measure))
         # set measure time, restart
-        self.mApb.write(0x60174, 0, channel, mask=1)
         self.mApb.write(0x60208, sfr_measure<<4, channel, mask=0x1f<<4)
-        self.mApb.write(0x60174, 1, channel, mask=1)
-        # calculate ber
-        Delay(measure_time)
-        data = self.mApb.read(0x00060700,channel)
-        if ((data & 0x3) != 0):
-            cnt  = self.mCfg.ber_init_cnt
-            cnt += self.mApb.read(0x00060704,channel)
-            cnt += (self.mApb.read(0x00060708,channel) << 10)
-            cnt += (self.mApb.read(0x0006070C,channel) << 20)
-            cnt += (self.mApb.read(0x00060710,channel) << 30)
-            if self.mCfg.b_dbg_print:
-                print ("cnt=%d,bits=%d"%(cnt,measure_bits_db))
-            ber = cnt / (1<<measure_bits_db)
+        fail_by_not_found = False
+        cnt = self.mCfg.ber_init_cnt
+        for i in range(repeat):
+            self.mApb.write(0x60174, 0, channel, mask=1)
+            self.mApb.write(0x60174, 1, channel, mask=1)
+            # calculate ber
+            Delay(measure_time)
+            data = self.mApb.read(0x00060700,channel)
+            if ((data & 0x3) != 0):
+                cnt += self.mApb.read(0x00060704,channel)
+                cnt += (self.mApb.read(0x00060708,channel) << 10)
+                cnt += (self.mApb.read(0x0006070C,channel) << 20)
+                cnt += (self.mApb.read(0x00060710,channel) << 30)
+            else:
+                fail_by_not_found = True
+                break
+        if fail_by_not_found:
+            ber = self.mCfg.ber_fail_value
         else:
-            ber  = self.mCfg.ber_fail_value
+            if self.mCfg.b_dbg_print:
+                print("[GetBer] measure_bits(%d)/cycle(%d),repeat(%d), err_cnt(%d) " % ( measure_bits_db, measure_cycle, repeat, cnt))
+            ber = cnt / (1 << measure_bits_db)
         return ber
     def GetRxEqCoef(self,tap,channel=0,repeat=1):
         regmap = ([0x2274,0x2270,0x223C] + [0x2250+4*i for i in range(8)])
@@ -581,12 +590,12 @@ class EVB_PMAD(object):
         extra_result = {}
         count_num = get_count_num(accum_set)
         for key,data_l in err_list.items():
-            extra_result[key] = evb_extra.bathtub_extrapolation_horizontal(data_l,count_num,margin_list)
+            extra_result[key] = evb_extra.bathtub_extrapolation_horizontal(data_l,count_num,margin_list,key)
 
         # 4. plot
         if self.mCfg.extra_ber_h_plot:
             plt_name = (self.mCfg.dump_abs_path+'hbath'+self.mCfg.GetCondition()+'.png')
-            PlotBerHorizontal_Bathtub(extra_result,plot_raw_en=self.mCfg.extra_ber_h_plot_raw,plt_name=plt_name)
+            PlotBerHorizontal_Bathtub(extra_result,margin_list,plot_raw_en=self.mCfg.extra_ber_h_plot_raw,plt_name=plt_name)
 
         # 5. result
         ber_result = []
@@ -1110,7 +1119,7 @@ class EVB_PMAD(object):
         self.mApb.write(0x50634, 0x0182, channel)                 # [11:6] cn2_step_size_3 [5:0] cn2_step_size_2
         self.mApb.write(0x50638, 0x0086, channel)                 # [11:6] cn2_step_size_1 [5:0] cn2_step_size_0
     def SetTxEqDecrease(self, pre2, pre1, post1, attenuation=1.0, channel=0):
-        self.mApb.write(0x50014, 1<<0, channel, mask= 0x1<<0)   # TODO: something strange
+        self.mApb.write(0x50014, 1<<0, channel, mask= 0x1<<0)
         self.mApb.write(0x50088, 0x1000, channel)
         self.mApb.write(0x50088, 0x0000, channel)
         # decrease main as others are changed

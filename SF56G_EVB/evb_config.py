@@ -28,23 +28,25 @@ class EVB_CONFIG(object):
         self.b_WA0 = True
         self.b_use_old_tune = False
         self.ber_init_cnt = 0
+        self.ber_delay_margin = 0
+        self.ber_max_measure_bit = 50
         self.dump_path = '../dump/'
         self.histo_meastime = 5
         self.histo_zero_thld = 10
         self.b_use_old_meas_eye = False
         self.eom_zero_thld = 1000
         self.b_use_txeq_lut = False
-        self.extra_ber_nrz_margin_list=[-12,-15,-17]
-        self.extra_ber_pam4_margin_list=[-9,-12]
+        self.extra_ber_nrz_margin_list = [-12,-15,-17]
+        self.extra_ber_pam4_margin_list = [-6,-9]
         self.log_ber_thld = 5*1e-1
         self.log_target   = ['tx','rx','cmn']
         self.extra_ber_h_phase = 90
         self.extra_ber_h_dump  = False
         self.extra_ber_h_plot  = False
-        self.extra_ber_h_plot_raw = False
+        self.extra_ber_h_plot_raw = True
         self.extra_ber_h_accum_set = 10
         self.extra_ber_h_nrz_margin_list  = [-12,-15,-17]
-        self.extra_ber_h_pam4_margin_list = [-9,-12]
+        self.extra_ber_h_pam4_margin_list = [-6,-9]
         self.gen_params()
     def gen_params(self):
         self.dump_abs_path = get_evb_path()+'\\'+self.dump_path
