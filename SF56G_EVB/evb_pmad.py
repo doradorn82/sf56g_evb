@@ -367,6 +367,11 @@ class EVB_PMAD(object):
         date = datetime.datetime.now()
         date_str = '_%04d%02d%02d_%02d%02d_%s' % (date.year,date.month,date.day,date.hour,date.minute,tag.replace(' ','_'))
         self.DumpRegFile(target=['tx','rx','cmn'],tag=date_str,channel=channel)
+        if self.mCfg.make_sound_at_log:
+            self.MakeSound()
+
+    def MakeSound(self):
+        winsound.Beep(400,5*1000)
 
     def GetStatus(self,measure_bits_db=30,extra_ber_en=1,HeightOnly=1,lin_fit_en=1,lin_fit_point=41,lin_fit_main=10,imp_eq_out=0,tag='',channel=0):
         result = {}
@@ -389,10 +394,13 @@ class EVB_PMAD(object):
         result['cboost'] = self.cboost[channel]
         # BER_SIMPLE
         result['ber'] = self.GetBer(measure_bits_db,channel)
-        # LOG 
+        # LOG
+        result['critical_error'] = 0
         if result['ber'] >= self.mCfg.log_ber_thld:
             print("logging by ber=%4.2e"%result['ber'])
             self.GetLog(tag,channel)
+            if (self.mApb.read(0x64000,channel) >> 10) & 1 == 1: #SQUELCH
+                result['critical_error'] = 1
 
         # BER_EXTRA
         if(extra_ber_en==1 and result['ber']<1e-6):
@@ -1904,19 +1912,12 @@ class EVB_PMAD(object):
         mon_sel = eq_out
         databist = self.mApb.read(0x50104, channel)  # tx bist
         dataencode = self.mApb.read(0x50084, channel)  # encode sel
-        time.sleep(0.1)
         self.mApb.write(0x00060190, 0x00000000 | mon_sel, channel)
-        time.sleep(0.1)
         self.mApb.write(0x50104, (1 << 2) + (1 << 5), channel, mask=((0x3 << 2) + (0x1 << 5)))
-        time.sleep(0.1)
         self.mApb.write(0x50084, 2 << 3, channel, mask=0x3 << 3)
-        time.sleep(0.1)
         self.mApb.write(0x00060190, 0x00000002 | mon_sel, channel)
-        time.sleep(0.1)
         self.mApb.write(0x50104, databist, channel)  # tx bist
-        time.sleep(0.1)
         self.mApb.write(0x50084, dataencode, channel)  # encode sel
-        time.sleep(0.1)
         dumpData=[]
         for i in range(256):
             addr = 0x00065000 + +i * 4
