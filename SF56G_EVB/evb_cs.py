@@ -2456,9 +2456,9 @@ class EVB_CS(object):
 						self.mApb.write(0x0000010c, 0x00000107)
 																												
 						if (afcValue % 2 == 1):
-								self.mApb.write(0x000000F8, 0x00000306 | (afcValue / 2 << 4))
+								self.mApb.write(0x000000F8, 0x00000306 | (int(afcValue / 2) << 4))
 						else:
-								self.mApb.write(0x000000F8, 0x00000006 | (afcValue / 2 << 4))
+								self.mApb.write(0x000000F8, 0x00000006 | (int(afcValue / 2) << 4))
 						self.mApb.write(0x00000110, 0x00000001 | (vciValue << 1))
 						self.mApb.write(0x00000064, 0x00000011)
 						self.mApb.write(0x0000014C, 0x00000020)
@@ -2476,9 +2476,9 @@ class EVB_CS(object):
 						self.mApb.write(0x24000024, 0x00000231)
 						self.mApb.write(0x00000138, 0x00000001)
 						if (afcValue % 2 == 1):
-								self.mApb.write(0x000000F8, 0x00000306 | (afcValue / 2 << 4))
+								self.mApb.write(0x000000F8, 0x00000306 | (int(afcValue / 2) << 4))
 						else:
-								self.mApb.write(0x000000F8, 0x00000006 | (afcValue / 2 << 4))
+								self.mApb.write(0x000000F8, 0x00000006 | (int(afcValue / 2) << 4))
 						self.mApb.write(0x00000110, 0x00000001 | (vciValue << 1))
 						self.mApb.write(0x00000104, 0x0000004F)
 						self.mApb.write(0x00000100, 0x00000A67)

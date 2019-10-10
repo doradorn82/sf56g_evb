@@ -1704,6 +1704,11 @@ class EVB_PMAD(object):
         self.mApb.write(0x60038, 0<<10|11<<5|11, channel) # afe_hfeq i_ctrl, rl_ctrl
         self.mApb.write(0x00050020, 0x00000002, channel)
         self.mApb.write(0x00060048, 0x0000799f, channel)
+        # for 32G test
+        # self.mApb.write(0x00060054, ((8 << 11) + (15 << 7) + (15 << 3)),channel)  # vga2 dac lsb ctrl [1:0] 0->3, rs [15:11] i ctrl [6:3], dac pull up [2] 40
+        # self.mApb.write(0x00060050, ((8 << 7) + (8 << 3)),channel)  # vga1 dac lsb ctrl [1:0] 0->3, i ctrl [6:3], dac pull up [2] 40
+        # self.mApb.write(0x00060038, ((4 << 10) + (8 << 5) + 8), channel)  # hfef c sel [13:10] i ctrl [9:5], rl ctrl [4:0]
+
     def SetRLB(self,b_boost_current=True,channel=0):
         cm1init = 20
         vga2Gain = 15
@@ -1902,7 +1907,7 @@ class EVB_PMAD(object):
         time.sleep(0.1)
         self.mApb.write(0x00060190, 0x00000000 | mon_sel, channel)
         time.sleep(0.1)
-        self.mApb.write(0x50104, 1 << 2 + 1 << 5, channel, mask=(0x3 << 2 + 0x1 << 5))
+        self.mApb.write(0x50104, (1 << 2) + (1 << 5), channel, mask=((0x3 << 2) + (0x1 << 5)))
         time.sleep(0.1)
         self.mApb.write(0x50084, 2 << 3, channel, mask=0x3 << 3)
         time.sleep(0.1)
