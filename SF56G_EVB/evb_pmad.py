@@ -7,6 +7,7 @@ from evb_plot import *
 import evb_extra
 import datetime
 import time
+import winsound
 from scipy import optimize
 
 
@@ -366,6 +367,11 @@ class EVB_PMAD(object):
         date = datetime.datetime.now()
         date_str = '_%04d%02d%02d_%02d%02d_%s' % (date.year,date.month,date.day,date.hour,date.minute,tag.replace(' ','_'))
         self.DumpRegFile(target=['tx','rx','cmn'],tag=date_str,channel=channel)
+        if self.mCfg.make_sound_at_log:
+            self.MakeSound()
+
+    def MakeSound(self):
+        winsound.Beep(400,5*1000)
 
     def GetStatus(self,measure_bits_db=30,extra_ber_en=1,HeightOnly=1,lin_fit_en=1,lin_fit_point=41,lin_fit_main=10,imp_eq_out=0,tag='',channel=0):
         result = {}
@@ -388,10 +394,13 @@ class EVB_PMAD(object):
         result['cboost'] = self.cboost[channel]
         # BER_SIMPLE
         result['ber'] = self.GetBer(measure_bits_db,channel)
-        # LOG 
+        # LOG
+        result['critical_error'] = 0
         if result['ber'] >= self.mCfg.log_ber_thld:
             print("logging by ber=%4.2e"%result['ber'])
             self.GetLog(tag,channel)
+            if (self.mApb.read(0x64000,channel) >> 10) & 1 == 1: #SQUELCH
+                result['critical_error'] = 1
 
         # BER_EXTRA
         if(extra_ber_en==1 and result['ber']<1e-6):
@@ -1222,8 +1231,6 @@ class EVB_PMAD(object):
                 self.mApb.write(0x50100, 0<<6, channel, 1<<6)
                 self.mApb.write(0x50100, 1<<6, channel, 1<<6)
     def SetRxOff(self,b_keep_clk=True,channel=0):
-        if self.mCfg.b_dbg_print:
-            self.PrintIocCalState()
         # rx_pi=Active
         if b_keep_clk:
             self.mApb.write(0x6000C, 0xf<<6|1<<1, channel, mask=0xf<<6|1<<1)
@@ -1462,7 +1469,6 @@ class EVB_PMAD(object):
             minVal = maxMin & 0xff
             print("Max= %d" %maxVal)
             print("Min= %d" %minVal)
-        self.mApb.write(0x601cc, 0x000001ff, ln_i)   # power rdc en [0]
         return 0
     def AfeTuneScale(self, ln_i=0):
         rxstate = self.mApb.read(0x64000,ln_i)
@@ -1706,6 +1712,11 @@ class EVB_PMAD(object):
         self.mApb.write(0x60038, 0<<10|11<<5|11, channel) # afe_hfeq i_ctrl, rl_ctrl
         self.mApb.write(0x00050020, 0x00000002, channel)
         self.mApb.write(0x00060048, 0x0000799f, channel)
+        # for 32G test
+        # self.mApb.write(0x00060054, ((8 << 11) + (15 << 7) + (15 << 3)),channel)  # vga2 dac lsb ctrl [1:0] 0->3, rs [15:11] i ctrl [6:3], dac pull up [2] 40
+        # self.mApb.write(0x00060050, ((8 << 7) + (8 << 3)),channel)  # vga1 dac lsb ctrl [1:0] 0->3, i ctrl [6:3], dac pull up [2] 40
+        # self.mApb.write(0x00060038, ((4 << 10) + (8 << 5) + 8), channel)  # hfef c sel [13:10] i ctrl [9:5], rl ctrl [4:0]
+
     def SetRLB(self,b_boost_current=True,channel=0):
         cm1init = 20
         vga2Gain = 15
@@ -1901,19 +1912,12 @@ class EVB_PMAD(object):
         mon_sel = eq_out
         databist = self.mApb.read(0x50104, channel)  # tx bist
         dataencode = self.mApb.read(0x50084, channel)  # encode sel
-        time.sleep(0.1)
         self.mApb.write(0x00060190, 0x00000000 | mon_sel, channel)
-        time.sleep(0.1)
-        self.mApb.write(0x50104, 1 << 2 + 1 << 5, channel, mask=(0x3 << 2 + 0x1 << 5))
-        time.sleep(0.1)
+        self.mApb.write(0x50104, (1 << 2) + (1 << 5), channel, mask=((0x3 << 2) + (0x1 << 5)))
         self.mApb.write(0x50084, 2 << 3, channel, mask=0x3 << 3)
-        time.sleep(0.1)
         self.mApb.write(0x00060190, 0x00000002 | mon_sel, channel)
-        time.sleep(0.1)
         self.mApb.write(0x50104, databist, channel)  # tx bist
-        time.sleep(0.1)
         self.mApb.write(0x50084, dataencode, channel)  # encode sel
-        time.sleep(0.1)
         dumpData=[]
         for i in range(256):
             addr = 0x00065000 + +i * 4

@@ -24,7 +24,6 @@ class EVB_CONFIG(object):
         self.cb_pmad_pre = None
         self.phaseStep = 2
         self.b_init_boost_current = [True]*4
-        #self.b_init_boost_current = True
         self.b_WA0 = True
         self.b_use_old_tune = False
         self.ber_fail_value = 0.5
@@ -48,6 +47,9 @@ class EVB_CONFIG(object):
         self.extra_ber_h_accum_set = 10
         self.extra_ber_h_nrz_margin_list  = [-12,-15,-17]
         self.extra_ber_h_pam4_margin_list = [-6,-9]
+        self.make_sound_at_log = False
+        self.track_apb_write_en = False
+        self.track_apb_write_addr = []
         self.gen_params()
     def gen_params(self):
         self.dump_abs_path = get_evb_path()+'\\'+self.dump_path

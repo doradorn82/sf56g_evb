@@ -52,7 +52,8 @@ class EVB_APB(object):
         if track:
             rdata = EVBMain.EVB_ApbRead(waddr)
             print ("[ApbWrite] 0x%x = 0x%x -> 0x%x" % (waddr,rdata,wdata))
-
+        if self.mCfg.track_apb_write_en and (waddr in self.mCfg.track_apb_write_addr):
+            print ("[ApbWrite] 0x%x = 0x%x" % (waddr,wdata))
         EVBMain.EVB_ApbWrite(waddr,wdata)
 
         if self.mCfg.b_dbg_apb_write:

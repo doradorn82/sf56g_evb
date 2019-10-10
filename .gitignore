@@ -1,4 +1,6 @@
 dump/*
+Test/*.py
+!Test/test_*.py
 *.pyc
 *.*~
 *.sw*
