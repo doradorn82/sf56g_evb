@@ -7,6 +7,7 @@ from evb_plot import *
 import evb_extra
 import datetime
 import time
+import winsound
 from scipy import optimize
 
 
@@ -1222,8 +1223,6 @@ class EVB_PMAD(object):
                 self.mApb.write(0x50100, 0<<6, channel, 1<<6)
                 self.mApb.write(0x50100, 1<<6, channel, 1<<6)
     def SetRxOff(self,b_keep_clk=True,channel=0):
-        if self.mCfg.b_dbg_print:
-            self.PrintIocCalState()
         # rx_pi=Active
         if b_keep_clk:
             self.mApb.write(0x6000C, 0xf<<6|1<<1, channel, mask=0xf<<6|1<<1)
@@ -1462,7 +1461,6 @@ class EVB_PMAD(object):
             minVal = maxMin & 0xff
             print("Max= %d" %maxVal)
             print("Min= %d" %minVal)
-        self.mApb.write(0x601cc, 0x000001ff, ln_i)   # power rdc en [0]
         return 0
     def AfeTuneScale(self, ln_i=0):
         rxstate = self.mApb.read(0x64000,ln_i)
