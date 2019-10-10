@@ -144,13 +144,13 @@ def bathtub_extrapolation_vertical(filename,filename2,countNum=29,countNum2=19,p
         fitCdfHigh = np.zeros(dataLen)
        
         best_vals, covar = optimize.curve_fit(gaussian, adcCode, pdfLow,[1,adcCode[low1e5Index],40]) 
-        for i in range(30):
-            fitPdfLow = gaussian(adcCode,best_vals[0],best_vals[1],best_vals[2]*(1+i*0.02))
+        for i in range(60):
+            fitPdfLow = gaussian(adcCode,best_vals[0],best_vals[1],best_vals[2]*(0.4+i*0.02))
             fitPdfLow /= sum(fitPdfLow)
             for j in range(dataLen):
                 fitCdfLow[j]  = sum(fitPdfLow[j:])/2
             if(fitCdfLow[lowStopIndex-2] >= cdfLow[lowStopIndex-2]):
-                fitPdfLow = gaussian(adcCode,best_vals[0],best_vals[1],best_vals[2]*(1+(i-1)*0.02))
+                fitPdfLow = gaussian(adcCode,best_vals[0],best_vals[1],best_vals[2]*(0.4+(i-1)*0.02))
                 fitPdfLow /= sum(fitPdfLow)
                 for j in range(dataLen):
                     if(pam4==1):
@@ -159,13 +159,13 @@ def bathtub_extrapolation_vertical(filename,filename2,countNum=29,countNum2=19,p
                         fitCdfLow[j]  = sum(fitPdfLow[j:])/2
                 break
         best_vals, covar = optimize.curve_fit(gaussian, adcCode, pdfHigh,[1,adcCode[high1e5Index],40]) 
-        for i in range(30):
-            fitPdfHigh = gaussian(adcCode,best_vals[0],best_vals[1],best_vals[2]*(1+i*0.02))
+        for i in range(60):
+            fitPdfHigh = gaussian(adcCode,best_vals[0],best_vals[1],best_vals[2]*(0.4+i*0.02))
             fitPdfHigh /= sum(fitPdfHigh)
             for j in range(dataLen):
                 fitCdfHigh[j] = sum(fitPdfHigh[:j+1])/2
             if(fitCdfHigh[highStartIndex+2] >= cdfHigh[highStartIndex+2]):
-                fitPdfHigh = gaussian(adcCode,best_vals[0],best_vals[1],best_vals[2]*(1+i*0.02))
+                fitPdfHigh = gaussian(adcCode,best_vals[0],best_vals[1],best_vals[2]*(0.4+i*0.02))
                 fitPdfHigh /= sum(fitPdfHigh)
                 for j in range(dataLen):
                     if(pam4==1):
