@@ -1,6 +1,16 @@
 import clr
 import os
+import platform
 from time import time, sleep
+
+def get_dll_path():
+    dll_path = os.environ['SF56G_EVB_PATH'] + '/dll'
+    if '32bit' in platform.architecture()[0]:
+        dll_path += '/x86'
+    else:
+        dll_path += '/x64'
+    return dll_path
+
 
 def add_evb_dll():
     dllpath = os.environ['SF56G_EVB_PATH'] + '/dll'

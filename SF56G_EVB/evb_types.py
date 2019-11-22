@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, IntEnum
 
 class PMAD_RxState(Enum):
     IDLE             = 1<<0
@@ -79,3 +79,46 @@ class PMAD_MainCalState(Enum):
       DONE = 5
       BG_CAL = 6
       SLEEP = 7
+
+class Verbosity(IntEnum):
+    NONE  = 0
+    LOW   = 1
+    MED   = 2
+    HIGH  = 3
+    FULL  = 4
+    DEBUG = 5
+
+class FT260_STATUS(IntEnum):
+    FT260_OK = 0
+    FT260_INVALID_HANDLE = 1
+    FT260_DEVICE_NOT_FOUND = 2
+    FT260_DEVICE_NOT_OPENED = 3
+    FT260_DEVICE_OPEN_FAIL = 4
+    FT260_DEVICE_CLOSE_FAIL = 5
+    FT260_INCORRECT_INTERFACE = 6
+    FT260_INCORRECT_CHIP_MODE = 7
+    FT260_DEVICE_MANAGER_ERROR = 8
+    FT260_IO_ERROR = 9
+    FT260_INVALID_PARAMETER = 10
+    FT260_NULL_BUFFER_POINTER = 11
+    FT260_BUFFER_SIZE_ERROR = 12
+    FT260_UART_SET_FAIL = 13
+    FT260_RX_NO_DATA = 14
+    FT260_GPIO_WRONG_DIRECTION = 15
+    FT260_INVALID_DEVICE = 16
+    FT260_I2C_READ_FAIL = 17
+    FT260_OTHER_ERROR = 18
+
+
+class FT260_I2C_CONDITION(IntEnum):
+    FT260_I2C_NONE = 0
+    FT260_I2C_START = 2
+    FT260_I2C_REPEATED_START = 3
+    FT260_I2C_STOP = 4
+    FT260_I2C_START_AND_STOP = 6
+
+
+class FT260_Clock_Rate(IntEnum):
+    FT260_SYS_CLK_12M = 0
+    FT260_SYS_CLK_24M = 1
+    FT260_SYS_CLK_48M = 2

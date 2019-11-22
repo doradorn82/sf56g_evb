@@ -13,7 +13,7 @@ class EVB_CONFIG(object):
         self.b_dbg_print = False
         self.b_WA0 = True
         self.b_prot_en = False
-        self.media_mode = 'RLB' #:= 'SLB'(internal channel),'ELB'(external channel),'RLB'(external long channel)
+        self.media_mode = 'ELB' #:= 'SLB'(internal channel),'ELB_S'(external channel),'ELB'(external long channel)
         self.adc_measure_time = 1
         self.ber_chk_period   = 500
         self.ber_chk_max      = 10
@@ -22,8 +22,8 @@ class EVB_CONFIG(object):
         self.vdd08 = 'reg'
         self.vdd12 = 'reg'
         self.cb_pmad_pre = None
-        self.phaseStep = 2
-        self.b_init_boost_current = [True]*4
+        self.phaseStep = 1
+        self.b_boost_current = [False]*4
         self.b_WA0 = True
         self.b_use_old_tune = False
         self.ber_fail_value = 0.5
@@ -40,13 +40,6 @@ class EVB_CONFIG(object):
         self.extra_ber_pam4_margin_list = [-6,-9]
         self.log_ber_thld = 5*1e-1
         self.log_target   = ['tx','rx','cmn']
-        self.extra_ber_h_phase = 90
-        self.extra_ber_h_dump  = False
-        self.extra_ber_h_plot  = False
-        self.extra_ber_h_plot_raw = True
-        self.extra_ber_h_accum_set = 10
-        self.extra_ber_h_nrz_margin_list  = [-12,-15,-17]
-        self.extra_ber_h_pam4_margin_list = [-6,-9]
         self.make_sound_at_log = False
         self.track_apb_write_en = False
         self.track_apb_write_addr = []
