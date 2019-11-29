@@ -126,10 +126,10 @@ class SF56G(object):
         return self.mPmad.GetBer(measure_bits_db, channel)
 
     def get_status(self, measure_bits_db=34, vertical_analysis_en=1, horizontal_analysis_en=0, lin_fit_en=1, lin_fit_point=41,
-                   lin_fit_main=10, tag='', channel=0):
+                   lin_fit_main=10, tag='', channel=0,lin_fit_pulse_plot_en=1,bathtub_plot_en=1,filename=''):
         return self.mPmad.GetStatus(measure_bits_db=measure_bits_db, vertical_analysis_en=vertical_analysis_en, horizontal_analysis_en=horizontal_analysis_en,
                                     lin_fit_en=lin_fit_en, lin_fit_point=lin_fit_point, lin_fit_main=lin_fit_main,
-                                    tag=tag, channel=channel)
+                                    tag=tag, channel=channel,lin_fit_pulse_plot_en=lin_fit_pulse_plot_en,bathtub_plot_en=bathtub_plot_en,filename=filename)
 
     def set_tx_pre_post(self, tx_pre2=0, tx_pre1=0, tx_post1=0, attenuation=1.0, channel=0):
         self.mPmad.SetTxEq(tx_pre2, tx_pre1, tx_post1, attenuation, channel)
@@ -141,8 +141,8 @@ class SF56G(object):
     def display_rx_eq(self, channel=0):
         self.mPmad.PrintAllRxCoef(channel)
 
-    def lin_fit_pulse(self, num_point=41, main=10, eq_out=0, plot_en=1, channel=0):
-        return self.mPmad.lin_fit_pulse(pam4, num_point, main, eq_out, plot_en, channel)
+    def lin_fit_pulse(self, num_point=41, main=10, eq_out=0, lin_fit_pulse_plot_en=1, channel=0,filename=''):
+        return self.mPmad.lin_fit_pulse(num_point, main, eq_out, lin_fit_pulse_plot_en, channel,filename)
 
     def get_impulse(self, patternwidth=16, channel=0):
         print(self.mPmad.get_impulse(patternwidth, channel))

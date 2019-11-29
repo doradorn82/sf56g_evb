@@ -168,6 +168,11 @@ class EVB_PMAD(object):
         print("LN[%d] C[ 7]: %3d (%-.2f)" % (channel, -c7, round(-c7 / 128.0, 2)))
         print("LN[%d] C[ 8]: %3d (%-.2f)" % (channel, -c8, round(-c8 / 128.0, 2)))
 
+    def print_adc_min_max(self, channel=0):
+        maxMin = self.get_adc_max_min16(channel)
+        maxVal = maxMin >> 8
+        minVal = maxMin & 0xff
+        print("Max, Min= %d %d " % (maxVal,minVal))
     def PrintAllAdcMinMax(self, channel=0, mon_sel=0):
         for adc_channel in range(32):
             (minval, maxval) = self.GetAdcMinMax(adc_channel, channel, mon_sel, 1)
@@ -472,8 +477,9 @@ class EVB_PMAD(object):
         return int(coef_sum / repeat)
 
     def GetStatus(self, measure_bits_db=30, vertical_analysis_en=1, horizontal_analysis_en=0, lin_fit_en=1, lin_fit_point=41,
-                  lin_fit_main=10, tag='', channel=0):
+                  lin_fit_main=10, tag='', channel=0,lin_fit_pulse_plot_en=1,bathtub_plot_en=1,filename=''):
         result = {}
+        pam4=self.is_pam4_rate(self.mCfg.data_rate)
         # TxEQ
         result['tx_pre2'] = self.tx_pre2[channel]
         result['tx_pre1'] = self.tx_pre1[channel]
@@ -501,7 +507,7 @@ class EVB_PMAD(object):
             if (self.mApb.read(0x64000, channel) >> 10) & 1 == 1:  # SQUELCH
                 result['critical_error'] = 1
 
-        if(result['ber']<1e-6):
+        if(result['ber']<1e-9):
             analysisMode = 'BOTH'
         elif(result['ber']<1e-5):
             analysisMode = 'EYE'
@@ -510,32 +516,101 @@ class EVB_PMAD(object):
 
         # BER_EXTRA and EYE SIZE
         if (vertical_analysis_en == 1):
-            result['voltage_margin'], result['extra_ber_vertical'],eyeVertical = self.get_extra_ber_vertical(channel=channel,mode=analysisMode)
-        else:
-            result['voltage_margin'], result['extra_ber_vertical'], eyeVertical = [],[],[0,0,0]
+            # result['voltage_margin'], result['extra_ber_vertical'],eyeVertical = self.get_extra_ber_vertical(channel=channel,mode=analysisMode)
+            result_voltage_margin, result_extra_ber_vertical,eyeVertical = self.get_extra_ber_vertical(channel=channel,mode=analysisMode,bathtub_plot_en=bathtub_plot_en,file_name=filename)
+            if(pam4):
+                margin_list=self.mCfg.extra_ber_pam4_margin_list
+                for i, margin in enumerate(margin_list):
+                    result['voltage_margin_eye_01_1e' + str(margin)] = result_voltage_margin[0][i]
+                    result['voltage_margin_eye_12_1e' + str(margin)] = result_voltage_margin[1][i]
+                    result['voltage_margin_eye_23_1e' + str(margin)] = result_voltage_margin[2][i]
+                result['extra_ber_vertical_eye_01_L'] = result_extra_ber_vertical[0][0]
+                result['extra_ber_vertical_eye_01_H'] = result_extra_ber_vertical[0][1]
+                result['extra_ber_vertical_eye_01_X'] = result_extra_ber_vertical[0][2]
+                result['extra_ber_vertical_eye_12_L'] = result_extra_ber_vertical[1][0]
+                result['extra_ber_vertical_eye_12_H'] = result_extra_ber_vertical[1][1]
+                result['extra_ber_vertical_eye_12_X'] = result_extra_ber_vertical[1][2]
+                result['extra_ber_vertical_eye_23_L'] = result_extra_ber_vertical[2][0]
+                result['extra_ber_vertical_eye_23_H'] = result_extra_ber_vertical[2][1]
+                result['extra_ber_vertical_eye_23_X'] = result_extra_ber_vertical[2][2]
+                result['eye01_height'] = eyeVertical[0]
+                result['eye12_height'] = eyeVertical[1]
+                result['eye23_height'] = eyeVertical[2]
+                result['extra_ber_vertical_total'] = (result['extra_ber_vertical_eye_01_L']+result['extra_ber_vertical_eye_01_H'])/2
+                result['extra_ber_vertical_total'] += (result['extra_ber_vertical_eye_12_L']+result['extra_ber_vertical_eye_12_H'])/2
+                result['extra_ber_vertical_total'] += (result['extra_ber_vertical_eye_23_L']+result['extra_ber_vertical_eye_23_H'])/2
+
+            else:
+                margin_list = self.mCfg.extra_ber_nrz_margin_list
+                for i,margin in enumerate(margin_list):
+                    result['voltage_margin_1e'+str(margin)]=result_voltage_margin[1][i]
+                result['extra_ber_vertical_L'] = result_extra_ber_vertical[1][0]
+                result['extra_ber_vertical_H'] = result_extra_ber_vertical[1][1]
+                result['extra_ber_vertical_X'] = result_extra_ber_vertical[1][2]
+                result['eye_height'] = eyeVertical[1]
+                result['extra_ber_vertical_total'] = (result['extra_ber_vertical_L'] + result['extra_ber_vertical_H'])
+            if(analysisMode!='BOTH'):
+                result['extra_ber_vertical_total']=0.5
+
+        # else:
+            # result['voltage_margin'], result['extra_ber_vertical'], eyeVertical = [],[],[0,0,0]
+            # result_voltage_margin, result_extra_ber_vertical, eyeVertical = [],[],[0,0,0]
+
 
         if (horizontal_analysis_en == 1):
-            result['ui_margin'], result['extra_ber_horizontal'], eyeHorizontal = self.get_extra_ber_horizontal(channel=channel,mode=analysisMode)
-        else:
-            result['ui_margin'], result['extra_ber_horizontal'], eyeHorizontal = [],[],[0,0,0]
-        # EYE
-        result['eye01_height'] = eyeVertical[0]
-        result['eye01_width'] = eyeHorizontal[0]
-        result['eye12_height'] = eyeVertical[1]
-        result['eye12_width'] = eyeHorizontal[1]
-        result['eye23_height'] = eyeVertical[2]
-        result['eye23_width'] = eyeHorizontal[2]
+            # result['ui_margin'], result['extra_ber_horizontal'], eyeHorizontal = self.get_extra_ber_horizontal(channel=channel,mode=analysisMode)
+            result_ui_margin, result_extra_ber_horizontal, eyeHorizontal = self.get_extra_ber_horizontal(channel=channel,mode=analysisMode,bathtub_plot_en=bathtub_plot_en,file_name=filename)
+            if (pam4):
+                margin_list = self.mCfg.extra_ber_pam4_margin_list
+                for i, margin in enumerate(margin_list):
+                    result['ui_margin_eye_01_1e' + str(margin)] = result_ui_margin[0][i]
+                    result['ui_margin_eye_12_1e' + str(margin)] = result_ui_margin[1][i]
+                    result['ui_margin_eye_23_1e' + str(margin)] = result_ui_margin[2][i]
+                result['extra_ber_horizontal_eye_01_L'] = result_extra_ber_horizontal[0][0]
+                result['extra_ber_horizontal_eye_01_R'] = result_extra_ber_horizontal[0][1]
+                result['extra_ber_horizontal_eye_01_X'] = result_extra_ber_horizontal[0][2]
+                result['extra_ber_horizontal_eye_12_L'] = result_extra_ber_horizontal[1][0]
+                result['extra_ber_horizontal_eye_12_R'] = result_extra_ber_horizontal[1][1]
+                result['extra_ber_horizontal_eye_12_X'] = result_extra_ber_horizontal[1][2]
+                result['extra_ber_horizontal_eye_23_L'] = result_extra_ber_horizontal[2][0]
+                result['extra_ber_horizontal_eye_23_R'] = result_extra_ber_horizontal[2][1]
+                result['extra_ber_horizontal_eye_23_X'] = result_extra_ber_horizontal[2][2]
+                result['eye01_width'] = eyeHorizontal[0]
+                result['eye12_width'] = eyeHorizontal[1]
+                result['eye23_width'] = eyeHorizontal[2]
+                result['extra_ber_horizontal_total'] = (result['extra_ber_horizontal_eye_01_L']+result['extra_ber_horizontal_eye_01_R'])/2
+                result['extra_ber_horizontal_total'] += (result['extra_ber_horizontal_eye_12_L']+result['extra_ber_horizontal_eye_12_R'])/2
+                result['extra_ber_horizontal_total'] += (result['extra_ber_horizontal_eye_23_L']+result['extra_ber_horizontal_eye_23_R'])/2
+            else:
+                margin_list = self.mCfg.extra_ber_nrz_margin_list
+                for i, margin in enumerate(margin_list):
+                    result['ui_margin_1e' + str(margin)] = result_ui_margin[1][i]
+                result['extra_ber_horizontal_L'] = result_extra_ber_horizontal[1][0]
+                result['extra_ber_horizontal_R'] = result_extra_ber_horizontal[1][1]
+                result['extra_ber_horizontal_X'] = result_extra_ber_horizontal[1][2]
+                result['eye_width'] = eyeHorizontal[1]
+                result['extra_ber_horizontal_total'] = (result['extra_ber_horizontal_L']+result['extra_ber_horizontal_R'])
+            if (analysisMode != 'BOTH'):
+                result['extra_ber_horizontal_total'] = 0.5
+            # EYE
+
+
+        # else:
+        #     # result['ui_margin'], result['extra_ber_horizontal'], eyeHorizontal = [],[],[0,0,0]
+        #     result_ui_margin, result_extra_ber_horizontal, eyeHorizontal = [],[],[0,0,0]
+
         # linear fit
         if (lin_fit_en == 1):
-            result['lin_fit_x'], result['lin_fit_y_adc'] = self.lin_fit_pulse(num_point=lin_fit_point, main=lin_fit_main, eq_out=0, channel=channel)
-            result['lin_fit_x'], result['lin_fit_y_dsp'] = self.lin_fit_pulse(num_point=lin_fit_point, main=lin_fit_main, eq_out=1, channel=channel)
-        else:
-            result['lin_fit_x'], result['lin_fit_y_adc'] = list(range(-lin_fit_main, lin_fit_point - lin_fit_main)), [0] * lin_fit_point
-            result['lin_fit_x'], result['lin_fit_y_dsp'] = list(range(-lin_fit_main, lin_fit_point - lin_fit_main)), [0] * lin_fit_point
+            result['lin_fit_x'], result['lin_fit_y_adc'] = self.lin_fit_pulse(num_point=lin_fit_point, main=lin_fit_main, eq_out=0, channel=channel,plot_en=lin_fit_pulse_plot_en,filename=filename)
+            result['lin_fit_x'], result['lin_fit_y_dsp'] = self.lin_fit_pulse(num_point=lin_fit_point, main=lin_fit_main, eq_out=1, channel=channel,plot_en=lin_fit_pulse_plot_en,filename=filename)
+        # else:
+        #     result['lin_fit_x'], result['lin_fit_y_adc'] = list(range(-lin_fit_main, lin_fit_point - lin_fit_main)), [0] * lin_fit_point
+        #     result['lin_fit_x'], result['lin_fit_y_dsp'] = list(range(-lin_fit_main, lin_fit_point - lin_fit_main)), [0] * lin_fit_point
         return result
 
-    def get_extra_ber_vertical(self, channel=0, mode='BOTH'):
+    def get_extra_ber_vertical(self, channel=0, mode='BOTH',bathtub_plot_en=1,file_name=''):
         pam4 = self.is_pam4_rate(self.mCfg.data_rate)
+        # imagename=self.mCfg.dump_abs_path+imagename
         if(mode=='NONE'):
             if(pam4==1):
                 marginList = [[0] * len(self.mCfg.extra_ber_pam4_margin_list)] * 3
@@ -550,7 +625,7 @@ class EVB_PMAD(object):
             self.mApb.write(0x00060100, 1 << 6, channel, 1 << 6) # change monitoring point from EOM path to Data path
 
             start=time.time()
-            filename = self.mCfg.dump_abs_path + "histo_data_" + self.mCfg.GetCondition() + "_ln" + str(channel) + "_count" + str(29) + ".txt"
+            filename = self.mCfg.dump_abs_path + file_name + "_histo_data.txt"
             hist_total=np.zeros(128)
             hist=np.zeros(128)
             bbpd=self.is_bbpd_rate(self.mCfg.data_rate)
@@ -608,15 +683,15 @@ class EVB_PMAD(object):
             else:
                 decisionLevel=[64]
             if (self.is_pam4_rate(self.mCfg.data_rate) == 1):
-                marginList, extraBerList, eyeList = evb_extra.bathtub_extrapolation_vertical(filename, 1, vrefSel, self.mCfg.extra_ber_pam4_margin_list, mode,decisionLevel)
+                marginList, extraBerList, eyeList = evb_extra.bathtub_extrapolation_vertical(filename, 1, vrefSel, self.mCfg.extra_ber_pam4_margin_list, mode,decisionLevel,bathtub_plot_en)
             else:
-                marginList, extraBerList, eyeList = evb_extra.bathtub_extrapolation_vertical(filename, 0, vrefSel, self.mCfg.extra_ber_nrz_margin_list, mode,decisionLevel)
+                marginList, extraBerList, eyeList = evb_extra.bathtub_extrapolation_vertical(filename, 0, vrefSel, self.mCfg.extra_ber_nrz_margin_list, mode,decisionLevel,bathtub_plot_en)
+            # print("elapsed : ", time.time() - start)
         if self.mCfg.b_dbg_print:
             print("Vertical extrapolation done!")
-        print("elapsed : ", time.time() - start)
         return marginList, extraBerList, eyeList
 
-    def get_extra_ber_horizontal(self, channel=0, mode='BOTH'):
+    def get_extra_ber_horizontal(self, channel=0, mode='BOTH',bathtub_plot_en=1,file_name=''):
         pam4 = self.is_pam4_rate(self.mCfg.data_rate)
         if(mode=='NONE'):
             if(pam4==1):
@@ -629,6 +704,8 @@ class EVB_PMAD(object):
             start=time.time()
             cm1Org = -self.GetRxEqCoef(tap=-1, channel=channel, repeat=1)
             c1Org = -self.GetRxEqCoef(tap=1, channel=channel, repeat=4)
+            if(c1Org==0):
+                c1Org=1
             totalPhase = 128 +30
             phaseStep = self.mCfg.phaseStep
             if self.mCfg.data_rate == 10.3125:
@@ -640,9 +717,11 @@ class EVB_PMAD(object):
             ## find eq coefficient for EOM path by measuring FOM value
             if not (self.is_bbpd_rate(self.mCfg.data_rate)):
                 maxFom = 0
-                maxFomC1List = []
-                for coeff_i in range(0,30,3):
-                    self.mApb.write(0x60120, 0x100 | 256-int((c1Org-coeff_i)/c1Org*cm1Org), channel)
+                maxFomC1List = [c1Org]
+                for coeff_i in range(3,30,3):
+                    if(c1Org-coeff_i<=0):
+                        break
+                    self.mApb.write(0x60120, 0x100 | 256-max(1,int((c1Org-coeff_i)/c1Org*cm1Org)), channel)
                     self.mApb.write(0x60130, 0x100 | 256-(c1Org-coeff_i), channel)
                     self.mApb.write(0x61ff8, 4, channel)
                     fom = self.get_max_fom(channel)
@@ -658,7 +737,7 @@ class EVB_PMAD(object):
                         break
                 if self.mCfg.b_dbg_print:
                     print('c1= %d, fom = %d'%(int(np.mean(np.array(maxFomC1List))), maxFom))
-                self.mApb.write(0x60120, 0x100 | 256 - int(np.mean(maxFomC1List) / c1Org * cm1Org), channel)
+                self.mApb.write(0x60120, 0x100 | 256 - max(1,int(np.mean(maxFomC1List) / c1Org * cm1Org)), channel)
                 self.mApb.write(0x60130, 0x100 | 256 - int(np.mean(maxFomC1List)), channel)
                 self.mApb.write(0x61ff8, 4, channel)
             fom = self.get_max_fom(channel)
@@ -706,124 +785,131 @@ class EVB_PMAD(object):
             ######
             #---------------------------------------------------------------------------------------------------------
             # if (pam4==0):
-            # # if (0):
-            #     bbpd=self.is_bbpd_rate(self.mCfg.data_rate)
-            #     acc1=[0xa , 0xb]
-            #     acc2=[0x4 , 0x3]
-            #
-            #     if self.is_bbpd_rate(self.mCfg.data_rate):
-            #         countNum = 16
-            #         self.mApb.write(0x00061000, acc2[bbpd] << 3, channel, 0xf << 3)
-            #     else:
-            #         countNum = 18
-            #         self.mApb.write(0x00061000, acc2[bbpd] << 3, channel, 0xf << 3)
-            #
-            #     phaseList=np.arange(0, totalPhase, phaseStep)
-            #     hist18=np.zeros(len(phaseList))
-            #
-            #     for index, phase_i in enumerate(phaseList):
-            #         phase = fom[0] + phase_i - int(totalPhase / 2)
-            #         self.set_eom_position(phase, channel)
-            #         self.mApb.write(0x00060100, 0 << 7, channel, 1 << 7)
-            #         self.mApb.write(0x00060100, 1 << 7, channel, 1 << 7)
-            #         while (1):
-            #             eom_done=(self.mApb.read(0x62248, 0) & 1)
-            #             if(eom_done==1):
-            #                 Delay(20)
-            #                 break
-            #         for lev_i, deci in enumerate(decisionLevel):
-            #             hist18[index] = self.mApb.read(0x63010 + deci * 4, channel)
-            #
-            #     self.set_eom_position(0, channel)
-            #     filename2 = self.mCfg.dump_abs_path + "hori_data_" + self.mCfg.GetCondition() + "_ln" + str(channel) + "_count" + str(countNum) + ".txt"
-            #     fs = open(filename2, 'w')
-            #     for index, phase_i in enumerate(phaseList):
-            #             fs.write("%s %s\n" % (str(phase_i - int(totalPhase / 2)), str(hist18[index])))
-            #     fs.close()
-            #
-            #     if self.is_bbpd_rate(self.mCfg.data_rate):
-            #         self.mApb.write(0x00061000, acc1[bbpd] << 3, channel, 0xf << 3)
-            #     else:
-            #         self.mApb.write(0x00061000, acc1[bbpd] << 3, channel, 0xf << 3)
-            #
-            #     mask = (hist18 < 65535/(2 ** (acc1[bbpd] - acc2[bbpd])))
-            #     hist24 = np.zeros(len(phaseList))
-            #     for index, phase_i in enumerate(phaseList):
-            #         if(mask[index]==True):
-            #             phase = fom[0] + phase_i - int(totalPhase / 2)
-            #             self.set_eom_position(phase, channel)
-            #             self.mApb.write(0x00060100, 0 << 7, channel, 1 << 7)
-            #             self.mApb.write(0x00060100, 1 << 7, channel, 1 << 7)
-            #             while (1):
-            #                 eom_done=(self.mApb.read(0x62248, 0) & 1)
-            #                 if(eom_done==1):
-            #                     Delay(20)
-            #                     break
-            #             hist24[index] = self.mApb.read(0x63010 + deci * 4, channel)
-            #         else:
-            #             hist24[index] = 65535
-            #
-            #     self.set_eom_position(0, channel)
-            #     filename = self.mCfg.dump_abs_path + "hori_data_" + self.mCfg.GetCondition() + "_ln" + str(channel) + "_count" + str(24) + ".txt"
-            #     fs = open(filename, 'w')
-            #     for index, phase_i in enumerate(phaseList):
-            #         fs.write("%s %s\n" % (str(phase_i - int(totalPhase / 2)), str(hist24[index])))
-            #     fs.close()
+            # if (0):
+            nL=1+pam4*2
+            bbpd=self.is_bbpd_rate(self.mCfg.data_rate)
+            acc1=[0xa , 0xb]
+            acc2=[0x4 , 0x3]
 
-            #---------------------------------------------------------------------------------------------------------
-            # else:
-            countNum = 24
-            if self.is_bbpd_rate(self.mCfg.data_rate):
-                self.mApb.write(0x00061000, 0xb << 3, channel, 0xf << 3)
-            else:
-                self.mApb.write(0x00061000, 0xa << 3, channel, 0xf << 3)
-            filename = self.mCfg.dump_abs_path + "hori_data_" + self.mCfg.GetCondition() + "_ln" + str(
-                channel) + "_count" + str(countNum) + ".txt"
-            fs = open(filename, 'w')
-            for phase_i in range(0, totalPhase, phaseStep):
-                phase = int(fom[0] + phase_i - totalPhase / 2)
-                self.set_eom_position(phase, channel)
-                self.mApb.write(0x00060100, 0 << 7, channel, 1 << 7)
-                self.mApb.write(0x00060100, 1 << 7, channel, 1 << 7)
-                Delay(100)
-                for lev_i, deci in enumerate(decisionLevel):
-                    data = self.mApb.read(0x63010 + deci * 4, channel)
-                    fs.write("%s %s\n" % (str(phase_i - int(totalPhase / 2)), str(data)))
-            self.set_eom_position(0, channel)
-            fs.close()
             if self.is_bbpd_rate(self.mCfg.data_rate):
                 countNum = 16
-                self.mApb.write(0x00061000, 0x3 << 3, channel, 0xf << 3)
+                self.mApb.write(0x00061000, acc2[bbpd] << 3, channel, 0xf << 3)
             else:
                 countNum = 18
-                self.mApb.write(0x00061000, 0x4 << 3, channel, 0xf << 3)
-            filename2 = self.mCfg.dump_abs_path + "hori_data_" + self.mCfg.GetCondition() + "_ln" + str(
-                channel) + "_count" + str(countNum) + ".txt"
-            fs = open(filename2, 'w')
-            for phase_i in range(0, totalPhase, phaseStep):
+                self.mApb.write(0x00061000, acc2[bbpd] << 3, channel, 0xf << 3)
+
+            phaseList=np.arange(0, totalPhase, phaseStep)
+            hist18=np.zeros(nL*len(phaseList))
+
+            for index, phase_i in enumerate(phaseList):
                 phase = fom[0] + phase_i - int(totalPhase / 2)
                 self.set_eom_position(phase, channel)
                 self.mApb.write(0x00060100, 0 << 7, channel, 1 << 7)
                 self.mApb.write(0x00060100, 1 << 7, channel, 1 << 7)
-                Delay(30)
+                while (1):
+                    eom_done=(self.mApb.read(0x62248, 0) & 1)
+                    if(eom_done==1):
+                        Delay(20)
+                        break
                 for lev_i, deci in enumerate(decisionLevel):
-                    data = self.mApb.read(0x63010 + deci * 4, channel)
-                    fs.write("%s %s\n" % (str(phase_i - int(totalPhase / 2)), str(data)))
+                    hist18[index*nL+lev_i] = self.mApb.read(0x63010 + deci * 4, channel)
+
             self.set_eom_position(0, channel)
+            filename2 = self.mCfg.dump_abs_path +file_name +"_hori_data2.txt"
+            fs = open(filename2, 'w')
+            for index, phase_i in enumerate(phaseList):
+                for lev_i, deci in enumerate(decisionLevel):
+                    fs.write("%s %s\n" % (str(phase_i - int(totalPhase / 2)), str(hist18[index*nL+lev_i])))
             fs.close()
+
+            if self.is_bbpd_rate(self.mCfg.data_rate):
+                self.mApb.write(0x00061000, acc1[bbpd] << 3, channel, 0xf << 3)
+            else:
+                self.mApb.write(0x00061000, acc1[bbpd] << 3, channel, 0xf << 3)
+            hist18_p=np.reshape(hist18,[nL,-1],'Fort')
+            mask=(np.zeros(len(hist18_p[0]))!=0)
+            for lev_i in range(nL):
+                mask = mask | (hist18_p[lev_i] < 65535/(2 ** (acc1[bbpd] - acc2[bbpd])))
+            hist24 = np.zeros(nL*len(phaseList))
+            for index, phase_i in enumerate(phaseList):
+                if(mask[index]==True):
+                    phase = fom[0] + phase_i - int(totalPhase / 2)
+                    self.set_eom_position(phase, channel)
+                    self.mApb.write(0x00060100, 0 << 7, channel, 1 << 7)
+                    self.mApb.write(0x00060100, 1 << 7, channel, 1 << 7)
+                    while (1):
+                        eom_done=(self.mApb.read(0x62248, 0) & 1)
+                        if(eom_done==1):
+                            Delay(20)
+                            break
+                    for lev_i, deci in enumerate(decisionLevel):
+                        hist24[index*nL+lev_i] = self.mApb.read(0x63010 + deci * 4, channel)
+                else:
+                    for lev_i, deci in enumerate(decisionLevel):
+                        hist24[index*nL+lev_i] = 65535
+
+            self.set_eom_position(0, channel)
+            filename = self.mCfg.dump_abs_path + file_name+"_hori_data.txt"
+            fs = open(filename, 'w')
+            for index, phase_i in enumerate(phaseList):
+                for lev_i, deci in enumerate(decisionLevel):
+                    fs.write("%s %s\n" % (str(phase_i - int(totalPhase / 2)), str(hist24[index*nL+lev_i])))
+            fs.close()
+
+            #---------------------------------------------------------------------------------------------------------
+            # else:
+            # countNum = 24
+            # if self.is_bbpd_rate(self.mCfg.data_rate):
+            #     self.mApb.write(0x00061000, 0xb << 3, channel, 0xf << 3)
+            # else:
+            #     self.mApb.write(0x00061000, 0xa << 3, channel, 0xf << 3)
+            # filename = self.mCfg.dump_abs_path + "hori_data_" + self.mCfg.GetCondition() + "_ln" + str(
+            #     channel) + "_count" + str(countNum) + ".txt"
+            # fs = open(filename, 'w')
+            # for phase_i in range(0, totalPhase, phaseStep):
+            #     phase = int(fom[0] + phase_i - totalPhase / 2)
+            #     self.set_eom_position(phase, channel)
+            #     self.mApb.write(0x00060100, 0 << 7, channel, 1 << 7)
+            #     self.mApb.write(0x00060100, 1 << 7, channel, 1 << 7)
+            #     Delay(100)
+            #     for lev_i, deci in enumerate(decisionLevel):
+            #         data = self.mApb.read(0x63010 + deci * 4, channel)
+            #         fs.write("%s %s\n" % (str(phase_i - int(totalPhase / 2)), str(data)))
+            # self.set_eom_position(0, channel)
+            # fs.close()
+            # if self.is_bbpd_rate(self.mCfg.data_rate):
+            #     countNum = 16
+            #     self.mApb.write(0x00061000, 0x3 << 3, channel, 0xf << 3)
+            # else:
+            #     countNum = 18
+            #     self.mApb.write(0x00061000, 0x4 << 3, channel, 0xf << 3)
+            # filename2 = self.mCfg.dump_abs_path + "hori_data_" + self.mCfg.GetCondition() + "_ln" + str(
+            #     channel) + "_count" + str(countNum) + ".txt"
+            # fs = open(filename2, 'w')
+            # for phase_i in range(0, totalPhase, phaseStep):
+            #     phase = fom[0] + phase_i - int(totalPhase / 2)
+            #     self.set_eom_position(phase, channel)
+            #     self.mApb.write(0x00060100, 0 << 7, channel, 1 << 7)
+            #     self.mApb.write(0x00060100, 1 << 7, channel, 1 << 7)
+            #     Delay(30)
+            #     for lev_i, deci in enumerate(decisionLevel):
+            #         data = self.mApb.read(0x63010 + deci * 4, channel)
+            #         fs.write("%s %s\n" % (str(phase_i - int(totalPhase / 2)), str(data)))
+            # self.set_eom_position(0, channel)
+            # fs.close()
 
             self.mApb.write(0x00061000, countNumOrg << 3, channel, 0xf << 3)
             self.mApb.write(0x60120, 0x100 | 256 - cm1Org, channel)
             self.mApb.write(0x60130, 0, channel)
             self.mApb.write(0x61ff8, 4, channel)
             if(pam4==1):
-                marginList, extraBerList, eyeList = evb_extra.bathtub_extrapolation_horizontal(filename, filename2, 24, countNum, 1,self.mCfg.extra_ber_pam4_margin_list, mode)
+                marginList, extraBerList, eyeList = evb_extra.bathtub_extrapolation_horizontal(filename, filename2, 24, countNum, 1,self.mCfg.extra_ber_pam4_margin_list, mode,bathtub_plot_en)
             else:
-                marginList, extraBerList, eyeList = evb_extra.bathtub_extrapolation_horizontal(filename, filename2, 24, countNum, 0,self.mCfg.extra_ber_nrz_margin_list, mode)
+                marginList, extraBerList, eyeList = evb_extra.bathtub_extrapolation_horizontal(filename, filename2, 24, countNum, 0,self.mCfg.extra_ber_nrz_margin_list, mode,bathtub_plot_en)
+            # print("fom code elapse : ", time.time() - start)
         if self.mCfg.b_dbg_print:
             print("Horizontal extrapolation done!")
 
-        print("fom code elapse : ", time.time() - start)
         return marginList, extraBerList, eyeList
 
     def get_max_fom(self,channel=0):
@@ -1392,11 +1478,12 @@ class EVB_PMAD(object):
         self.mApb.write(0x50638, 0x0086, channel)  # [11:6] cn2_step_size_1 [5:0] cn2_step_size_0
 
     def SetTxEqDecrease(self, pre2, pre1, post1, attenuation=1.0, channel=0):
+        # self.SetTxEqStep(channel)
         self.mApb.write(0x50014, 1 << 0, channel, mask=0x1 << 0)
         self.mApb.write(0x50088, 0x1000, channel)
         self.mApb.write(0x50088, 0x0000, channel)
         # decrease main as others are changed
-        main = pre2 + pre1 + post1 + round((1.0 - attenuation) / 0.05)
+        main = pre2 + pre1 + post1 + round((1.0 - attenuation) / 0.025)
         for i in range(main):
             self.mApb.write(0x50088, 0x0010, channel)
             self.mApb.write(0x50088, 0x0000, channel)
@@ -1435,9 +1522,9 @@ class EVB_PMAD(object):
         if self.mCfg.b_use_txeq_lut:
             self.SetTxEqLut(tx_pre2, tx_pre1, tx_post1, attenuation, channel)
         else:
-            pre2 = round(abs(tx_pre2) / 0.05)
-            pre1 = round(abs(tx_pre1) / 0.05)
-            post1 = round(abs(tx_post1) / 0.05)
+            pre2 = round(abs(tx_pre2) / 0.025)
+            pre1 = round(abs(tx_pre1) / 0.025)
+            post1 = round(abs(tx_post1) / 0.025)
             self.SetTxEqDecrease(pre2, pre1, post1, attenuation, channel)
 
     def SetRxEqForce(self, tap=1, coef=0, channel=0):
@@ -1685,18 +1772,19 @@ class EVB_PMAD(object):
         minLimit = 58
         vga1Gain = self.mApb.read(0x0006002c, ln_i) - 32
         ctleGain = 15 - (self.mApb.read(0x00060020, ln_i) - 16)
-        maxMin = self.GetAdcMaxMin8(ln_i)
+        maxMin = self.get_adc_max_min16(ln_i)
         maxVal = maxMin >> 8
         minVal = maxMin & 0xff
         adcVrefSel = self.mApb.read(0x00060034, ln_i)
         if self.mCfg.b_dbg_print:
+            print("vga1gain= %d" % vga1Gain)
             print("Max= %d" % maxVal)
             print("Min= %d" % minVal)
         if (maxVal + minVal < minLimit * 2):
             while ((maxVal + minVal < minLimit * 2) and ((adcVrefSel >> 6) > 0)):
                 adcVrefSel -= (1 << 6)
                 self.mApb.write(0x00060034, adcVrefSel, ln_i)
-                maxMin = self.GetAdcMaxMin8(ln_i)
+                maxMin = self.get_adc_max_min16(ln_i)
                 maxVal = maxMin >> 8
                 minVal = maxMin & 0xff
             if self.mCfg.b_dbg_print:
@@ -1706,7 +1794,7 @@ class EVB_PMAD(object):
             while ((maxVal + minVal > maxLimit * 2) and (vga1Gain > 0xf)):
                 vga1Gain -= 8
                 self.mApb.write(0x0006002c, 0x20 + vga1Gain, ln_i)
-                maxMin = self.GetAdcMaxMin8(ln_i)
+                maxMin = self.get_adc_max_min16(ln_i)
                 maxVal = maxMin >> 8
                 minVal = maxMin & 0xff
             if ((maxVal + minVal) < 110):
@@ -1718,20 +1806,23 @@ class EVB_PMAD(object):
                 print("Min= %d" % minVal)
                 print("vga1 update to 0x%x" % (vga1Gain))
         self.SwVga2Adap(ln_i)
+        if self.mCfg.b_dbg_print:
+            print("after vga2 adap")
+            self.print_adc_min_max()
         self.mApb.write(0x000601dc, 0x00000000, ln_i)
+        if self.mCfg.b_dbg_print:
+            print("after sq release")
+            self.print_adc_min_max()
         data2230 = (self.mApb.read(0x00062230, ln_i) & 0xff)
         if (data2230 == 0xff or data2230 == 0):
             return -1
         self.mApb.write(0x00060128, 0x000, ln_i)
         self.SwCm1Adap(ln_i)
         self.AdcFineCalRestart(ln_i)
-        if self.mCfg.b_dbg_print:
-            maxMin = self.GetAdcMaxMin8(ln_i)
-            maxVal = maxMin >> 8
-            minVal = maxMin & 0xff
-            print("Max= %d" % maxVal)
-            print("Min= %d" % minVal)
         c0 = self.mApb.read(0x6223C, ln_i)
+        if self.mCfg.b_dbg_print:
+            print("after adc fine cal restart")
+            self.print_adc_min_max()
         c1 = self.GetAvgCoeff(1, 4, ln_i)
         c2 = self.GetAvgCoeff(2, 4, ln_i)
         ctleUpdate = 0
@@ -1754,15 +1845,12 @@ class EVB_PMAD(object):
                 print("CTLE gain update(med) to 0x%x" % (15 - ctleGain))
             elif (ctleUpdate == 3):
                 print("CTLE gain update(long) to 0x%x" % (15 - ctleGain))
+        self.SwVga2Adap(ln_i)
         if (ctleUpdate != 0):
-            self.SwVga2Adap(ln_i)
             self.AdcFineCalRestart(ln_i)
         if self.mCfg.b_dbg_print:
-            maxMin = self.GetAdcMaxMin8(ln_i)
-            maxVal = maxMin >> 8
-            minVal = maxMin & 0xff
-            print("Max= %d" % maxVal)
-            print("Min= %d" % minVal)
+            print("after CTLE tune")
+            self.print_adc_min_max()
         return 0
 
     def AfeTuneScale(self, ln_i=0):
@@ -1772,12 +1860,12 @@ class EVB_PMAD(object):
             return -1
         maxLimit = 61
         minLimit = 58
-        maxMin = self.GetAdcMaxMin8(ln_i)
+        maxMin = self.get_adc_max_min16(ln_i)
         maxVal = maxMin >> 8
         minVal = maxMin & 0xff
         if (maxVal < minLimit and minVal < minLimit):
             self.SwVga2Adap(ln_i)
-            maxMin = self.GetAdcMaxMin8(ln_i)
+            maxMin = self.get_adc_max_min16(ln_i)
             maxVal = maxMin >> 8
             minVal = maxMin & 0xff
             adcVrefSel = self.mApb.read(0x00060034, ln_i)
@@ -1786,7 +1874,7 @@ class EVB_PMAD(object):
                 self.mApb.write(0x00060034, adcVrefSel, ln_i)
                 if self.mCfg.b_dbg_print:
                     print("adc vref sel update to 0x%x" % (adcVrefSel >> 6))
-        maxMin = self.GetAdcMaxMin8(ln_i)
+        maxMin = self.get_adc_max_min16(ln_i)
         maxVal = maxMin >> 8
         minVal = maxMin & 0xff
         if (maxVal > maxLimit and minVal > maxLimit):
@@ -1810,7 +1898,7 @@ class EVB_PMAD(object):
             if self.mCfg.b_dbg_print:
                 print("AdcFineCalRestart")
 
-    def GetAdcMaxMin8(self, ln_i=0):
+    def get_adc_max_min16(self, ln_i=0):
         maxData = 0;
         minData = 64;
         self.mApb.write(0x0006051c, 0x00000000, ln_i)
@@ -1828,7 +1916,7 @@ class EVB_PMAD(object):
 
     def SwVga2Adap(self, ln_i=0):
         vga2Gain = 15 - (self.mApb.read(0x00060028, ln_i) - 16)
-        maxMin = self.GetAdcMaxMin8(ln_i)
+        maxMin = self.get_adc_max_min16(ln_i)
         maxVal = maxMin >> 8
         minVal = maxMin & 0xff
         maxLimit = 62
@@ -1836,7 +1924,7 @@ class EVB_PMAD(object):
             while ((maxVal > maxLimit - 1 or minVal > maxLimit) and vga2Gain > 0):
                 vga2Gain -= 1
                 self.mApb.write(0x00060028, 0x0000001f - vga2Gain, ln_i)
-                maxMin = self.GetAdcMaxMin8(ln_i)
+                maxMin = self.get_adc_max_min16(ln_i)
                 maxVal = maxMin >> 8
                 minVal = maxMin & 0xff
             if self.mCfg.b_dbg_print:
@@ -1845,7 +1933,7 @@ class EVB_PMAD(object):
             while (maxVal < maxLimit - 3 and minVal < maxLimit - 2 and vga2Gain < 0xf):
                 vga2Gain += 1
                 self.mApb.write(0x00060028, 0x0000001f - vga2Gain, ln_i)
-                maxMin = self.GetAdcMaxMin8(ln_i)
+                maxMin = self.get_adc_max_min16(ln_i)
                 maxVal = maxMin >> 8
                 minVal = maxMin & 0xff
             if self.mCfg.b_dbg_print:
@@ -2170,7 +2258,7 @@ class EVB_PMAD(object):
         else:
             return int((np.mean(zeroRight) + np.median(zeroLeft)) / 2)
 
-    def lin_fit_pulse(self, num_point=41, main=10, eq_out=0, plot_en=1, channel=0):
+    def lin_fit_pulse(self, num_point=41, main=10, eq_out=0, plot_en=1, channel=0,filename=''):
         rcParams.update({'figure.autolayout': True})
         axisFont = {'family': 'serif', 'weight': 'bold', 'size': 12}
         textFont = {'family': 'serif', 'weight': 'bold', 'size': 11}
@@ -2180,7 +2268,7 @@ class EVB_PMAD(object):
         mon_sel = eq_out
         databist = self.mApb.read(0x50104, channel)  # tx bist
         self.mApb.write(0x00060190, 0x00000000 | mon_sel, channel)
-        self.mApb.write(0x50104, (1 << 2) , channel, mask=((0x3 << 2)))
+        self.mApb.write(0x50104, (1 << 2), channel, mask=((0x3 << 2)))
         self.mApb.write(0x00060190, 0x00000002 | mon_sel, channel)
         self.mApb.write(0x50104, databist, channel)  # tx bist
         dumpData = []
@@ -2214,33 +2302,61 @@ class EVB_PMAD(object):
             else:
                 prbs13q[i] = 3
         pam4 = self.is_pam4_rate(self.mCfg.data_rate)
-        if (pam4 == False):
-            pattern = prbs13[13:8191+13] * 2 - 1
-        elif (pam4 == True):
-            pattern = prbs13q / 3 * 2 - 1
+        bbpd = self.is_bbpd_rate(self.mCfg.data_rate)
+        if (bbpd == True):
+            main *= 2
+            num_point = num_point * 2 - 1
+        if (bbpd == True):
+            pattern = np.zeros(8191 * 2)
+            if(pam4==False):
+                for pat_i in range(8191):
+                    pattern[pat_i * 2] = prbs13[13 + pat_i] * 2 - 1
+            else:
+                for pat_i in range(8191):
+                    pattern[pat_i * 2] = prbs13q[pat_i] / 3 * 2 - 1
+        else:
+            if(pam4 == False):
+                pattern = prbs13[13:8191 + 13] * 2 - 1
+            else:
+                pattern = prbs13q / 3 * 2 - 1
         matY = dumpData / 128
         matX1 = np.ones((8191 + num_point, 256))
-        for i in range(8191 + num_point):
-            matX1[i] = np.roll(pattern, i)[0:256]
+        if (bbpd == True):
+            for i in range(8191 + num_point):
+                matX1[i] = np.roll(pattern, i * 2)[0:256]
+        else:
+            for i in range(8191 + num_point):
+                matX1[i] = np.roll(pattern, i)[0:256]
         matCorr1 = np.dot(matX1, matY.transpose())
-        startIndex1 = abs(matCorr1[:8191]).argmax()
+        if (bbpd == True):
+            startIndex1 = abs(matCorr1[:8191]).argmax() * 2
+        else:
+            startIndex1 = abs(matCorr1[:8191]).argmax()
         matX2 = np.ones((num_point + 1, 256))
         for i in range(num_point):
             matX2[i] = np.roll(pattern, i + startIndex1 - main)[0:256]
         matP = np.dot(matY, np.dot(matX2.transpose(), np.linalg.inv(np.dot(matX2, matX2.transpose()))))
         matPulse = matP[0:num_point]
         if (plot_en):
-            plt.plot(range(-main, num_point - main), matPulse, 'b-o', linewidth=2)
+            if (bbpd == True):
+                plt.plot(np.array(range(-main, num_point - main)) / 2, matPulse, 'b-o', linewidth=2)
+                plt.xlim([-main / 2, (num_point - main) / 2])
+            else:
+                plt.plot(range(-main, num_point - main), matPulse, 'b-o', linewidth=2)
+                plt.xlim([-main, num_point - main])
             plt.grid()
             plt.title("Impulse response", **titleFont)
             plt.xlabel("time [UI]", **titleFont)
-            plt.xlim([-main, num_point - main])
             if (eq_out == 1):
-                plt.savefig(self.mCfg.dump_abs_path + 'lfp_eq_out.png', dpi=200)
+                plt.savefig(self.mCfg.dump_abs_path + filename + '_lfp_eq_out.png', dpi=200)
             else:
-                plt.savefig(self.mCfg.dump_abs_path + 'lfp_adc_out.png', dpi=200)
+                plt.savefig(self.mCfg.dump_abs_path + filename + '_lfp_adc_out.png', dpi=200)
             plt.close()
-        return list(range(-main, num_point - main)), list(matPulse)
+        if (bbpd == True):
+            return list(np.array(range(-main, num_point - main)) / 2), list(matPulse)
+        else:
+            return list(range(-main, num_point - main)), list(matPulse)
+
 
     def get_impulse(self, patternwidth=16, channel=0):
         mon_sel = 0
@@ -2321,15 +2437,9 @@ class EVB_PMAD(object):
         return self.GetEye(HeightOnly, channel)
 
     def CheckOverGainAdc(self, limit, ln_i=0):
-        maxMin = self.GetAdcMaxMin(0, ln_i)
-        maxVal = (maxMin >> 8) - 64
-        minVal = 64 - (maxMin & 0x7f)
-        for i in range(3):
-            maxMin = self.GetAdcMaxMin(i + 1, ln_i)
-            maxVal += (maxMin >> 8) - 64
-            minVal += 64 - (maxMin & 0x7f)
-        maxVal /= 4
-        minVal /= 4
+        maxMin = self.get_adc_max_min16(ln_i)
+        maxVal = maxMin >> 8
+        minVal = maxMin & 0xff
         if (maxVal >= limit and minVal >= limit):
             return 1
         else:

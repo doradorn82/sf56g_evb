@@ -33,19 +33,19 @@ def Qfunc_fitting(cdf,adcCode,inv=0):
     BERforfitting=1e-3
     index=np.where((cdf>1e-150) & (cdf<BERforfitting))
     while(len(index[0])<4): # gurantees minimum amount of sample points(=5) for fitting
-        BERforfitting=BERforfitting*10
+        BERforfitting=BERforfitting+1e-3
         index=np.where((cdf>1e-150) & (cdf<BERforfitting))
     a=adcCode[index[0]]
     c=cdf[index[0]]
     if(inv==0):
-        best_vals, covar = scipy.optimize.curve_fit(LQfunc,a,np.log(c),bounds=([-np.inf,0,-np.inf],[a[0],np.inf,0]),sigma=np.abs(np.log(c)))
+        best_vals, covar = scipy.optimize.curve_fit(LQfunc,a,np.log(c),bounds=([-np.inf,0,-np.inf],[a[0],np.inf,0]),sigma=np.abs(np.log(c.clip(0,1e-2))))
     else:
-        best_vals, covar = scipy.optimize.curve_fit(LinvQfunc, a, np.log(c),bounds=([a[0], 0, -np.inf], [np.inf, np.inf, 0]),sigma=np.abs(np.log(c)))
+        best_vals, covar = scipy.optimize.curve_fit(LinvQfunc, a, np.log(c),bounds=([a[0], 0, -np.inf], [np.inf, np.inf, 0]),sigma=np.abs(np.log(c.clip(0,1e-2))))
     return best_vals
 
 
 
-def bathtub_extrapolation_vertical(filename, pam4=0, vrefSel=4, berMarginYList=[-12, -15, -17], mode='BOTH',decisionLevelIn=[64]):
+def bathtub_extrapolation_vertical(filename, pam4=0, vrefSel=4, berMarginYList=[-12, -15, -17], mode='BOTH',decisionLevelIn=[64],bathtub_plot_en=1):
     textFont, labelFont, titleFont = plot_favorite()
 
     eyeOpenBer=1e-4
@@ -179,19 +179,20 @@ def bathtub_extrapolation_vertical(filename, pam4=0, vrefSel=4, berMarginYList=[
         else:
             col = 'g'
 
-        if(mode!='BOTH'):
-            fitCdfLow = fitCdfLow + fitCdfHigh
-            emptyIndex=np.where(fitCdfLow==0)[0]
-            if(len(emptyIndex)!=0):
-                A=emptyIndex[0]
-                B=emptyIndex[-1]
-                fitCdfLow[A:B+1]=np.interp(emptyIndex,[A-1,B+1],[fitCdfLow[A-1],fitCdfLow[B+1]]) # interpolation
-            fitCdfHigh = fitCdfLow
+        # if(mode!='BOTH'):
+        #     fitCdfLow = fitCdfLow + fitCdfHigh
+        #     emptyIndex=np.where(fitCdfLow==0)[0]
+        #     if(len(emptyIndex)!=0):
+        #         A=emptyIndex[0]
+        #         B=emptyIndex[-1]
+        #         fitCdfLow[A:B+1]=np.interp(emptyIndex,[A-1,B+1],[fitCdfLow[A-1],fitCdfLow[B+1]]) # interpolation
+        #     fitCdfHigh = fitCdfLow
 
         plt.semilogy(adcCode, cdfLow, col + 'o', markersize=4)
-        plt.semilogy(adcCode, fitCdfLow, col, linewidth=2)
         plt.semilogy(adcCode, cdfHigh, col + 'o', markersize=4)
-        plt.semilogy(adcCode, fitCdfHigh, col, linewidth=2)
+        if(mode=='BOTH'):
+            plt.semilogy(adcCode, fitCdfLow, col, linewidth=2)
+            plt.semilogy(adcCode, fitCdfHigh, col, linewidth=2)
 
         plt.semilogy(eyeOpenX, [eyeOpenBer]* 2, col+'--')
 
@@ -214,7 +215,10 @@ def bathtub_extrapolation_vertical(filename, pam4=0, vrefSel=4, berMarginYList=[
                          **textFont)
 
     if(mode=='BOTH'):
-        berList2=np.array(berList)*np.array([[pam4,pam4,pam4],[1,1,1],[pam4,pam4,pam4]])
+        if(pam4==0):
+            berList2 = np.array([[-1,-1,-1],berList[1],[-1,-1,-1]])
+        else:
+            berList2 = np.array(berList)
         berMaxIndex1=int(berList2.argmax()/3)
         berMaxIndex2=np.mod(berList2.argmax(),3)
         yList=[1e-28,1e-18]
@@ -234,16 +238,18 @@ def bathtub_extrapolation_vertical(filename, pam4=0, vrefSel=4, berMarginYList=[
         plt.ylim([1e-30, 1])
     plt.xlabel('Voltage [mV]', **labelFont)
     plt.ylabel('BER', **labelFont)
-    plt.savefig(filename.replace('histo_data','bathtub_vertical').replace('.txt', '.png'), dpi=200)
+    # plt.savefig(filename.replace('histo_data','bathtub_vertical').replace('.txt', '.png'), dpi=200)
+    if(bathtub_plot_en):
+        plt.savefig(filename.replace('histo_data.txt','vertical_bathtub.png'), dpi=200)
     plt.close()
-
-    plt.plot(np.arange(-64,64),hist)
-    plt.grid(True)
-    plt.savefig(filename.replace('histo_data','histogram').replace('.txt', '.png'), dpi=200)
-    plt.close()
+    #
+    # plt.plot(np.arange(-64,64),hist)
+    # plt.grid(True)
+    # plt.savefig(filename.replace('histo_data','histogram').replace('.txt', '.png'), dpi=200)
+    # plt.close()
     return marginList, berList, eyeOpenSizeList
 
-def bathtub_extrapolation_horizontal(filename, filename2, countNum=29, countNum2=18, pam4=0, berMarginYList=[-12, -15, -17], mode='BOTH'):
+def bathtub_extrapolation_horizontal(filename, filename2, countNum=29, countNum2=18, pam4=0, berMarginYList=[-12, -15, -17], mode='BOTH',bathtub_plot_en=1):
     textFont, labelFont, titleFont = plot_favorite()
     eyeOpenBer = 1e-4
 
@@ -362,21 +368,22 @@ def bathtub_extrapolation_horizontal(filename, filename2, countNum=29, countNum2
         else:
             col = 'g'
 
-        if (mode != 'BOTH'):
-            fitCdfLow = fitCdfLow + fitCdfHigh
-            emptyIndex=np.where(fitCdfLow==0)[0]
-            if(len(emptyIndex)!=0):
-                A=emptyIndex[0]
-                B=emptyIndex[-1]
-                fitCdfLow[A:B+1]=np.interp(emptyIndex,[A-1,B+1],[fitCdfLow[A-1],fitCdfLow[B+1]]) # interpolation
-            fitCdfHigh = fitCdfLow
+        # if (mode != 'BOTH'):
+        #     fitCdfLow = fitCdfLow + fitCdfHigh
+        #     emptyIndex=np.where(fitCdfLow==0)[0]
+        #     if(len(emptyIndex)!=0):
+        #         A=emptyIndex[0]
+        #         B=emptyIndex[-1]
+        #         fitCdfLow[A:B+1]=np.interp(emptyIndex,[A-1,B+1],[fitCdfLow[A-1],fitCdfLow[B+1]]) # interpolation
+        #     fitCdfHigh = fitCdfLow
 
 
 
         plt.semilogy(phase, cdfLow, col + 'o', markersize=4)
-        plt.semilogy(phase, fitCdfLow, col, linewidth=2)
         plt.semilogy(phase, cdfHigh, col + 'o', markersize=4)
-        plt.semilogy(phase, fitCdfHigh, col, linewidth=2)
+        if(mode=='BOTH'):
+            plt.semilogy(phase, fitCdfLow, col, linewidth=2)
+            plt.semilogy(phase, fitCdfHigh, col, linewidth=2)
 
         plt.semilogy(eyeOpenX, [eyeOpenBer]* 2, col+'--')
 
@@ -402,7 +409,10 @@ def bathtub_extrapolation_horizontal(filename, filename2, countNum=29, countNum2
                          **textFont)
 
     if(mode=='BOTH'):
-        berList2=np.array(berList)*np.array([[pam4,pam4,pam4],[1,1,1],[pam4,pam4,pam4]])
+        if(pam4==0):
+            berList2 = np.array([[-1,-1,-1],berList[1],[-1,-1,-1]])
+        else:
+            berList2 = np.array(berList)
         berMaxIndex1=int(berList2.argmax()/3)
         berMaxIndex2=np.mod(berList2.argmax(),3)
         yList=[1e-28,1e-18]
@@ -424,6 +434,8 @@ def bathtub_extrapolation_horizontal(filename, filename2, countNum=29, countNum2
         plt.ylim([1e-30, 1])
     plt.xlabel('Phase [UI]', **labelFont)
     plt.ylabel('BER', **labelFont)
-    plt.savefig(filename.replace('hori_data','bathtub_horizontal').replace('.txt', '.png'), dpi=200)
+    #plt.savefig(filename.replace('hori_data','bathtub_horizontal').replace('.txt', '.png'), dpi=200)
+    if(bathtub_plot_en):
+        plt.savefig(filename.replace('hori_data.txt','horizontal_bathtub.png'), dpi=200)
     plt.close()
     return marginList, berList, eyeOpenSizeList
